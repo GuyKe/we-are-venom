@@ -3,8 +3,8 @@
 A Meta Quest WebXR game built with Three.js. A symbiote has bonded to your
 arms: they hang as floppy, whip-like black tendrils that follow your VR
 controllers with real verlet-rope physics. You stand on a small floating
-baseplate arena and smash glowing orbs out of the air by swinging your arms
-at them fast enough.
+baseplate arena, ringed by a lit-window city skyline at night, and smash
+glowing orbs out of the air by swinging your arms at them fast enough.
 
 ## Why WebXR
 
@@ -54,8 +54,17 @@ Browser, and you can iterate by just refreshing the page.
   into the ragdoll while in sludge form and you take him over: he's
   permanently recolored into a glossy black husk and you snap back to your
   normal size and speed, ready to grab someone else.
-
-## Controls
+- **City backdrop** — a ring of procedurally generated skyscrapers with
+  lit-window facades (a tileable canvas texture, randomized on/off per
+  window) surrounds the baseplate just beyond its edge, so the arena reads
+  as a platform floating near a city at night instead of empty space.
+- **Wall grapple** — pull a hand back fast (opposite to wherever you're
+  looking) and it fires a raycast from that hand toward whatever it's
+  aimed at; if it hits a building, you snap onto the wall and stick there,
+  frozen in place like you're clinging to the side of it. Squeeze either
+  **grip** to let go and drop back down (grip's normal ragdoll-grab is
+  suppressed while you're stuck to a wall - letting go always takes
+  priority).
 
 | Action                    | VR                          | Desktop preview        |
 | -------------------------- | ---------------------------- | ----------------------- |
@@ -66,6 +75,8 @@ Browser, and you can iterate by just refreshing the page.
 | Grab the ragdoll (right hand) | Right controller **grip**  | `G` key (aims with the camera) |
 | Grab the ragdoll (left hand)  | Left controller **grip**   | `F` key (aims with the camera) |
 | Toggle sludge form          | Left controller **Y**        | `Y` key |
+| Fire wall grapple            | Pull a hand back fast          | `R` key (aims with the camera) |
+| Let go of a wall             | Either controller **grip**    | `G` or `F` key |
 
 ## Project layout
 
@@ -76,11 +87,13 @@ src/VenomArm.js       Verlet tendril simulation + tapered tube mesh + claws
 src/venomTexture.js   Procedural black/white "symbiote crack" canvas texture
 src/Ragdoll.js        Grabbable verlet-physics ragdoll person
 src/Sludge.js         Short/medium-speed sludge form + touch-to-possess
+src/WallGrapple.js    Fast-pull-back wall grab/detach
+src/City.js           Procedural lit-window skyscraper ring around the arena
 src/Environment.js    Baseplate arena, starfield, lighting
 src/TargetOrbs.js     Smash-game orbs, hit detection, particle bursts
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
 src/Hud.js            Floating canvas-texture scoreboard sign
-src/sound.js          WebAudio-synthesized hit/possess sounds (no audio files)
+src/sound.js          WebAudio-synthesized hit/possess/grapple sounds (no audio files)
 ```
 
 ## Run it locally
@@ -126,3 +139,8 @@ the Quest Browser — no local dev server needed at that point.
 - `Sludge.js` constants: `HEIGHT_DROP` (how short the sludge form is),
   `SLUDGE_MOVE_SPEED`, and `TOUCH_RADIUS` (how close you need to crawl to
   the ragdoll to take him over).
+- `WallGrapple.js` constants: `PULL_SPEED_THRESHOLD`/`BACKWARD_DOT_THRESHOLD`
+  (how fast and how "backward" a pull needs to be to fire), `MAX_DISTANCE`
+  (grapple range), and `STANDOFF` (how far off the wall surface you hang).
+- `City.js` constants: `BUILDING_COUNT` and the `RING_INNER_RADIUS`/
+  `RING_OUTER_RADIUS` band the skyscrapers are scattered across.

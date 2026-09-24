@@ -64,3 +64,22 @@ export function playPossessSound() {
   osc.start(now);
   osc.stop(now + 0.55);
 }
+
+/** A quick synthesized "thwip" for a tendril grapple latching onto a wall. */
+export function playGrappleSound() {
+  const ctx = getContext();
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(900, now);
+  osc.frequency.exponentialRampToValueAtTime(180, now + 0.12);
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.3, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.14);
+}

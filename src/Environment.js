@@ -57,7 +57,7 @@ function createStarfield() {
 /** Builds the floating baseplate arena: a glowing platform in a starry void. */
 export function buildEnvironment(scene) {
   scene.background = new THREE.Color(0x02030a);
-  scene.fog = new THREE.FogExp2(0x02030a, 0.035);
+  scene.fog = new THREE.FogExp2(0x02030a, 0.022);
 
   const baseplate = new THREE.Mesh(
     new THREE.CylinderGeometry(9, 9.4, 0.4, 64),

@@ -2,14 +2,16 @@ import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildEnvironment } from './Environment.js';
+import { buildCity } from './City.js';
 import { createVenomMaterial } from './venomTexture.js';
 import { VenomArm } from './VenomArm.js';
 import { RagdollHuman } from './Ragdoll.js';
 import { Locomotion } from './Locomotion.js';
 import { SludgeForm } from './Sludge.js';
+import { WallGrapple } from './WallGrapple.js';
 import { TargetOrbs } from './TargetOrbs.js';
 import { Hud } from './Hud.js';
-import { playSmashSound, playPossessSound } from './sound.js';
+import { playSmashSound, playPossessSound, playGrappleSound } from './sound.js';
 
 const intro = document.getElementById('intro');
 
@@ -28,6 +30,7 @@ document.getElementById('app').appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
 buildEnvironment(scene);
+const { buildingMeshes } = buildCity(scene);
 
 // Player rig ("dolly"): move this to move the player around the baseplate.
 const rig = new THREE.Group();
@@ -52,6 +55,7 @@ const controllers = [renderer.xr.getController(0), renderer.xr.getController(1)]
 const handedness = { 0: null, 1: null };
 
 const ragdoll = new RagdollHuman(scene, { standPosition: new THREE.Vector3(1.6, 0, -3.2) });
+const wallGrapple = new WallGrapple(rig, buildingMeshes);
 
 function forwardOf(quat, out) {
   return out.set(0, 0, -1).applyQuaternion(quat);
@@ -68,6 +72,16 @@ function attemptGrab(side, originObject) {
   ragdoll.tryGrab(side, tmpGrabOrigin, tmpGrabDir);
 }
 
+// Grip ("squeeze") normally grabs the ragdoll - but while stuck to a wall
+// from the grapple, grip instead lets go of the wall (that takes priority).
+function handleGripStart(side, originObject) {
+  if (wallGrapple.attached) {
+    wallGrapple.detach();
+    return;
+  }
+  attemptGrab(side, originObject);
+}
+
 controllers.forEach((controller, i) => {
   controller.addEventListener('connected', (event) => {
     handedness[i] = event.data.handedness;
@@ -75,10 +89,8 @@ controllers.forEach((controller, i) => {
   controller.addEventListener('disconnected', () => {
     handedness[i] = null;
   });
-  // Grip ("squeeze") grabs the ragdoll: a generous raycast range lets the
-  // tendrils grab him from well beyond normal arm's reach.
   controller.addEventListener('squeezestart', () => {
-    if (handedness[i]) attemptGrab(handedness[i], controller);
+    if (handedness[i]) handleGripStart(handedness[i], controller);
   });
   controller.addEventListener('squeezeend', () => {
     if (handedness[i]) ragdoll.releaseGrab(handedness[i]);
@@ -136,6 +148,13 @@ function findGripBySide(side) {
   return null;
 }
 
+function findControllerBySide(side) {
+  for (let i = 0; i < 2; i++) {
+    if (handedness[i] === side) return controllers[i];
+  }
+  return null;
+}
+
 const shoulderOffsetLeft = new THREE.Vector3(-0.22, -0.28, -0.08);
 const shoulderOffsetRight = new THREE.Vector3(0.22, -0.28, -0.08);
 
@@ -155,12 +174,18 @@ function computeShoulderAnchor(offset, out) {
 const prevTipPositions = { left: new THREE.Vector3(), right: new THREE.Vector3() };
 const tipVelocities = { left: new THREE.Vector3(), right: new THREE.Vector3() };
 const handWorldPositions = { left: new THREE.Vector3(), right: new THREE.Vector3() };
+const prevHandWorldPositions = { left: new THREE.Vector3(), right: new THREE.Vector3() };
+const handVelocities = { left: new THREE.Vector3(), right: new THREE.Vector3() };
 
-/** Raw hand/controller world position, independent of any active grab. */
-function updateHandWorldPositions(inXR) {
+/** Raw hand/controller world position (+ velocity), independent of any active grab. */
+function updateHandWorldPositions(inXR, dt) {
   for (const side of ['left', 'right']) {
     const targetObject = (inXR && findGripBySide(side)) || desktopTargets[side];
+    prevHandWorldPositions[side].copy(handWorldPositions[side]);
     targetObject.getWorldPosition(handWorldPositions[side]);
+    if (dt > 0) {
+      handVelocities[side].copy(handWorldPositions[side]).sub(prevHandWorldPositions[side]).divideScalar(dt);
+    }
   }
 }
 
@@ -242,9 +267,37 @@ function checkSludgeButton() {
   }
 }
 
+// Pulling a hand back fast (opposite to where you're looking) fires the
+// wall-grapple: a raycast from that hand toward wherever it's aimed. Only
+// meaningful in VR (desktop has no real hand-tracked velocity), and not
+// while the sludge form has no arms to pull back with.
+const tmpFacing = new THREE.Vector3();
+const tmpAimQuat = new THREE.Quaternion();
+const tmpAimDir = new THREE.Vector3();
+function checkWallGrapplePulls() {
+  if (sludge.active) return;
+  camera.getWorldQuaternion(tmpAimQuat);
+  forwardOf(tmpAimQuat, tmpFacing);
+  for (const side of ['left', 'right']) {
+    const controller = findControllerBySide(side);
+    if (!controller) continue;
+    controller.getWorldQuaternion(tmpAimQuat);
+    forwardOf(tmpAimQuat, tmpAimDir);
+    const attached = wallGrapple.tryTriggerFromPull(
+      side,
+      handVelocities[side],
+      tmpFacing,
+      handWorldPositions[side],
+      tmpAimDir
+    );
+    if (attached) playGrappleSound();
+  }
+}
+
 // Keyboard "B"/"X" mirror the same lash-out for desktop preview/testing.
 // "G"/"F" mirror the right/left grip (aiming with wherever the camera looks).
-// "Y" mirrors the left controller's sludge-form toggle.
+// "Y" mirrors the left controller's sludge-form toggle. "R" fires the wall
+// grapple using the camera's aim, standing in for the VR pull-back gesture.
 window.addEventListener('keydown', (event) => {
   if (event.repeat) return;
   const key = event.key.toLowerCase();
@@ -252,8 +305,14 @@ window.addEventListener('keydown', (event) => {
   if (key === 'x') armLeft.triggerExtend();
   if (key === 'y') sludge.toggle();
   if (renderer.xr.isPresenting) return;
-  if (key === 'g') attemptGrab('right', camera);
-  if (key === 'f') attemptGrab('left', camera);
+  if (key === 'g') handleGripStart('right', camera);
+  if (key === 'f') handleGripStart('left', camera);
+  if (key === 'r' && !sludge.active) {
+    camera.getWorldPosition(tmpGrabOrigin);
+    camera.getWorldQuaternion(tmpGrabQuat);
+    forwardOf(tmpGrabQuat, tmpGrabDir);
+    if (wallGrapple.attachTo(tmpGrabOrigin, tmpGrabDir)) playGrappleSound();
+  }
 });
 window.addEventListener('keyup', (event) => {
   if (renderer.xr.isPresenting) return;
@@ -269,16 +328,19 @@ renderer.setAnimationLoop(() => {
   const t = clock.elapsedTime;
   const inXR = renderer.xr.isPresenting;
 
+  wallGrapple.update(dt);
+
   if (inXR) {
-    locomotion.update(dt);
+    if (!wallGrapple.attached) locomotion.update(dt);
     checkExtendButtons();
     checkSludgeButton();
+    checkWallGrapplePulls();
   } else {
     orbit.update();
     updateDesktopTargets(t);
   }
 
-  updateHandWorldPositions(inXR);
+  updateHandWorldPositions(inXR, dt);
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);
   ragdoll.update(dt, handWorldPositions);
