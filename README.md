@@ -33,6 +33,26 @@ Browser, and you can iterate by just refreshing the page.
 - **Desktop preview** — no headset handy? Click the intro screen to look
   around the arena with mouse-orbit; the tendrils animate on simulated hand
   targets so you can sanity-check the scene on a monitor.
+- **Grabbable ragdoll** — a standing ragdoll person waits on the baseplate.
+  Squeeze either controller's **grip** while aiming at him to grab him with
+  that hand's tendril — the arm itself visibly stretches out to reach him
+  from well beyond normal arm's reach (up to ~6m away), then reels him in
+  toward your hand while you hold the grip. He's a real verlet-physics
+  ragdoll (a small skeleton of particles + distance constraints, the same
+  technique as the arms), so he tumbles and drags realistically and
+  collapses in a heap when you let go. He stands back up on his own a few
+  seconds after being released.
+
+## Controls
+
+| Action                    | VR                          | Desktop preview        |
+| -------------------------- | ---------------------------- | ----------------------- |
+| Move                       | Left thumbstick               | Mouse-orbit / scroll    |
+| Snap turn                  | Right thumbstick               | —                        |
+| Lash right arm out & back  | Right controller **B**        | `B` key                 |
+| Lash left arm out & back   | Left controller **X**         | `X` key                 |
+| Grab the ragdoll (right hand) | Right controller **grip**  | `G` key (aims with the camera) |
+| Grab the ragdoll (left hand)  | Left controller **grip**   | `F` key (aims with the camera) |
 
 ## Project layout
 
@@ -41,6 +61,7 @@ index.html          Entry HTML + intro overlay
 src/main.js          Scene setup, XR rig wiring, render loop
 src/VenomArm.js       Verlet tendril simulation + tapered tube mesh + claws
 src/venomTexture.js   Procedural black/white "symbiote crack" canvas texture
+src/Ragdoll.js        Grabbable verlet-physics ragdoll person
 src/Environment.js    Baseplate arena, starfield, lighting
 src/TargetOrbs.js     Smash-game orbs, hit detection, particle bursts
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
@@ -84,3 +105,7 @@ the Quest Browser — no local dev server needed at that point.
   (higher = floppier/saggier), `baseRadius`/`tipRadius` (arm thickness taper).
 - `TargetOrbs`: `HIT_SPEED_THRESHOLD` in `src/TargetOrbs.js` controls how fast
   you need to swing to register a smash.
+- `Ragdoll.js` constants: `REEL_SPEED` (how fast the grabbed rope shortens),
+  `MIN_ROPE_LENGTH`, `RESPAWN_DELAY` (seconds before he stands back up), and
+  the `tryGrab(..., maxDistance, grabRadius)` arguments in `main.js` control
+  how far away and how forgiving the grab raycast is.

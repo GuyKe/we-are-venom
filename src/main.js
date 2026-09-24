@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildEnvironment } from './Environment.js';
 import { createVenomMaterial } from './venomTexture.js';
 import { VenomArm } from './VenomArm.js';
+import { RagdollHuman } from './Ragdoll.js';
 import { Locomotion } from './Locomotion.js';
 import { TargetOrbs } from './TargetOrbs.js';
 import { Hud } from './Hud.js';
@@ -49,12 +50,37 @@ const controllerGrips = [renderer.xr.getControllerGrip(0), renderer.xr.getContro
 const controllers = [renderer.xr.getController(0), renderer.xr.getController(1)];
 const handedness = { 0: null, 1: null };
 
+const ragdoll = new RagdollHuman(scene, { standPosition: new THREE.Vector3(1.6, 0, -3.2) });
+
+function forwardOf(quat, out) {
+  return out.set(0, 0, -1).applyQuaternion(quat);
+}
+
+const tmpGrabOrigin = new THREE.Vector3();
+const tmpGrabDir = new THREE.Vector3();
+const tmpGrabQuat = new THREE.Quaternion();
+
+function attemptGrab(side, originObject) {
+  originObject.getWorldPosition(tmpGrabOrigin);
+  originObject.getWorldQuaternion(tmpGrabQuat);
+  forwardOf(tmpGrabQuat, tmpGrabDir);
+  ragdoll.tryGrab(side, tmpGrabOrigin, tmpGrabDir);
+}
+
 controllers.forEach((controller, i) => {
   controller.addEventListener('connected', (event) => {
     handedness[i] = event.data.handedness;
   });
   controller.addEventListener('disconnected', () => {
     handedness[i] = null;
+  });
+  // Grip ("squeeze") grabs the ragdoll: a generous raycast range lets the
+  // tendrils grab him from well beyond normal arm's reach.
+  controller.addEventListener('squeezestart', () => {
+    if (handedness[i]) attemptGrab(handedness[i], controller);
+  });
+  controller.addEventListener('squeezeend', () => {
+    if (handedness[i]) ragdoll.releaseGrab(handedness[i]);
   });
   rig.add(controller);
   rig.add(controllerGrips[i]);
@@ -118,13 +144,30 @@ function computeShoulderAnchor(offset, out) {
 
 const prevTipPositions = { left: new THREE.Vector3(), right: new THREE.Vector3() };
 const tipVelocities = { left: new THREE.Vector3(), right: new THREE.Vector3() };
+const handWorldPositions = { left: new THREE.Vector3(), right: new THREE.Vector3() };
+
+/** Raw hand/controller world position, independent of any active grab. */
+function updateHandWorldPositions(inXR) {
+  for (const side of ['left', 'right']) {
+    const targetObject = (inXR && findGripBySide(side)) || desktopTargets[side];
+    targetObject.getWorldPosition(handWorldPositions[side]);
+  }
+}
 
 function updateArm(arm, side, offset, dt, inXR) {
   const anchor = computeShoulderAnchor(offset, tmpAnchor);
   const targetObject = (inXR && findGripBySide(side)) || desktopTargets[side];
-
-  targetObject.getWorldPosition(tmpTarget);
   targetObject.getWorldQuaternion(tmpQuat);
+
+  // While holding a grab, the tendril's tip stretches to the grabbed body
+  // part instead of following the raw hand position, so the arm itself
+  // visibly reaches all the way out to him.
+  const grab = ragdoll.grabs[side];
+  if (grab) {
+    tmpTarget.copy(ragdoll.getParticlePosition(grab.index));
+  } else {
+    tmpTarget.copy(handWorldPositions[side]);
+  }
 
   arm.update(anchor, tmpTarget, tmpQuat, dt);
 
@@ -173,11 +216,21 @@ function checkExtendButtons() {
 }
 
 // Keyboard "B"/"X" mirror the same lash-out for desktop preview/testing.
+// "G"/"F" mirror the right/left grip (aiming with wherever the camera looks).
 window.addEventListener('keydown', (event) => {
   if (event.repeat) return;
   const key = event.key.toLowerCase();
   if (key === 'b') armRight.triggerExtend();
   if (key === 'x') armLeft.triggerExtend();
+  if (renderer.xr.isPresenting) return;
+  if (key === 'g') attemptGrab('right', camera);
+  if (key === 'f') attemptGrab('left', camera);
+});
+window.addEventListener('keyup', (event) => {
+  if (renderer.xr.isPresenting) return;
+  const key = event.key.toLowerCase();
+  if (key === 'g') ragdoll.releaseGrab('right');
+  if (key === 'f') ragdoll.releaseGrab('left');
 });
 
 const clock = new THREE.Clock();
@@ -195,8 +248,10 @@ renderer.setAnimationLoop(() => {
     updateDesktopTargets(t);
   }
 
+  updateHandWorldPositions(inXR);
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);
+  ragdoll.update(dt, handWorldPositions);
 
   orbs.update(dt, [
     { position: armLeft.getTip(), velocity: tipVelocities.left },
