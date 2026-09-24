@@ -148,26 +148,36 @@ function updateDesktopTargets(t) {
   );
 }
 
-// The Quest right controller's "B" button lashes the right tendril out and
-// back (a one-shot pulse - see VenomArm.triggerExtend). Edge-detected so
-// holding the button doesn't keep re-triggering it.
-let bButtonWasPressed = false;
-function checkExtendButton() {
+// The Quest face buttons lash the matching tendril out and back (a one-shot
+// pulse - see VenomArm.triggerExtend): right controller's B for the right
+// arm, left controller's X for the left arm. In the xr-standard gamepad
+// mapping, button index 4 is the primary face button (A on the right
+// controller, X on the left) and index 5 is the secondary one (B / Y) - so
+// each hand watches a different index for its "first" face button.
+// Edge-detected per hand so holding the button doesn't keep re-triggering it.
+const EXTEND_BUTTON_INDEX = { left: 4, right: 5 }; // left=X, right=B
+const extendButtonState = { left: false, right: false };
+function checkExtendButtons() {
   const session = renderer.xr.getSession();
   if (!session) return;
   for (const source of session.inputSources) {
-    if (source.handedness !== 'right' || !source.gamepad) continue;
-    const button = source.gamepad.buttons[5]; // xr-standard: 4=A/X, 5=B/Y
+    const side = source.handedness;
+    if ((side !== 'left' && side !== 'right') || !source.gamepad) continue;
+    const button = source.gamepad.buttons[EXTEND_BUTTON_INDEX[side]];
     const pressed = !!button && button.pressed;
-    if (pressed && !bButtonWasPressed) armRight.triggerExtend();
-    bButtonWasPressed = pressed;
-    return;
+    if (pressed && !extendButtonState[side]) {
+      (side === 'left' ? armLeft : armRight).triggerExtend();
+    }
+    extendButtonState[side] = pressed;
   }
 }
 
-// Keyboard "B" mirrors the same lash-out for desktop preview/testing.
+// Keyboard "B"/"X" mirror the same lash-out for desktop preview/testing.
 window.addEventListener('keydown', (event) => {
-  if (!event.repeat && event.key.toLowerCase() === 'b') armRight.triggerExtend();
+  if (event.repeat) return;
+  const key = event.key.toLowerCase();
+  if (key === 'b') armRight.triggerExtend();
+  if (key === 'x') armLeft.triggerExtend();
 });
 
 const clock = new THREE.Clock();
@@ -179,7 +189,7 @@ renderer.setAnimationLoop(() => {
 
   if (inXR) {
     locomotion.update(dt);
-    checkExtendButton();
+    checkExtendButtons();
   } else {
     orbit.update();
     updateDesktopTargets(t);
