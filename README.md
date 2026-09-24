@@ -17,9 +17,14 @@ Browser, and you can iterate by just refreshing the page.
   tapered tube mesh, pinned at the shoulder and at your hand (controller
   grip). Low constraint-iteration count keeps them soft and whip-like instead
   of rigid, so fast swings make them lag, sag and snap like living goo.
+- **Spiky tentacle mass** — rather than one smooth limb, a scattering of
+  thin, sharp secondary spikes branches off each tendril's body and idly
+  writhes, plus a few longer claw-like spikes at the tip that curl with the
+  hand — closer to the concept-art "mass of symbiote whips" look than a
+  single clean arm.
 - **Venom-style material** — a procedurally generated canvas texture paints
-  branching white "muscle crack" veins onto a glossy black clearcoat
-  material. No external image assets.
+  branching white "muscle crack" veins onto a glossy, wet-looking black
+  clearcoat material. No external image assets.
 - **Smash-the-orbs minigame** — orbs float around the arena; hitting one with
   enough tendril-tip velocity destroys it in a small black goo particle
   burst, plays a synthesized thud, and increments a floating scoreboard.

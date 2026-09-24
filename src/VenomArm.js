@@ -3,12 +3,18 @@ import * as THREE from 'three';
 const GRAVITY = new THREE.Vector3(0, -3.2, 0);
 const CONSTRAINT_ITERATIONS = 3;
 const RADIAL_SEGMENTS = 8;
+const UP = new THREE.Vector3(0, 1, 0);
 
 /**
  * A floppy, whip-like symbiote tendril that stretches from the player's
  * shoulder to their hand (the VR controller grip). Simulated with simple
  * verlet integration + distance constraints, so fast hand motion makes it
  * lag, sag and whip like living black goo, instead of a rigid arm.
+ *
+ * Visually it's dressed up like a mass of thin symbiote tentacles rather
+ * than a single smooth limb: a scattering of thin, sharp secondary spikes
+ * branch off the main tendril's body and idly writhe, plus a few longer
+ * claw-like spikes at the tip that curl with whatever way the hand turns.
  */
 export class VenomArm {
   constructor({
@@ -17,10 +23,11 @@ export class VenomArm {
     segmentCount = 9,
     slack = 1.4,
     armLength = 0.8,
-    baseRadius = 0.075,
-    tipRadius = 0.028,
+    baseRadius = 0.055,
+    tipRadius = 0.01,
     extendDistance = 1.0,
     extendDuration = 1.0,
+    branchSpikeCount = 7,
   }) {
     this.side = side;
     this.segmentCount = segmentCount;
@@ -30,6 +37,7 @@ export class VenomArm {
     this.extendDistance = extendDistance;
     this.extendDuration = extendDuration;
     this.extendTimer = 0;
+    this.elapsed = 0;
     this._extendedTarget = new THREE.Vector3();
     this._forward = new THREE.Vector3();
 
@@ -51,18 +59,54 @@ export class VenomArm {
     this.mesh = new THREE.Mesh(this.geometry, material);
     this.mesh.frustumCulled = false;
 
-    // Small claw spikes anchored to the tendril tip, oriented with the hand.
+    // Per-sample Frenet-ish frame of the main tube, filled in by
+    // _rebuildMesh() and reused to plant the branch spikes on its surface.
+    const sampleCount = this.lengthSegments + 1;
+    this._frameCenters = Array.from({ length: sampleCount }, () => new THREE.Vector3());
+    this._frameTangents = Array.from({ length: sampleCount }, () => new THREE.Vector3());
+    this._frameNormals = Array.from({ length: sampleCount }, () => new THREE.Vector3());
+    this._frameBinormals = Array.from({ length: sampleCount }, () => new THREE.Vector3());
+
+    // A scattering of thin sharp tentacles branching off the main tendril's
+    // body, each idly writhing - the "mass of symbiote whips" look, rather
+    // than one smooth clean limb.
+    this.spikesGroup = new THREE.Group();
+    this.branchSpikes = [];
+    for (let i = 0; i < branchSpikeCount; i++) {
+      const length = 0.12 + Math.random() * 0.24;
+      const radius = 0.006 + Math.random() * 0.008;
+      const geometry = new THREE.ConeGeometry(radius, length, 6);
+      geometry.translate(0, length / 2, 0);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.frustumCulled = false;
+      this.spikesGroup.add(mesh);
+      this.branchSpikes.push({
+        mesh,
+        tParam: 0.12 + Math.random() * 0.8,
+        angleOffset: Math.random() * Math.PI * 2,
+        tangentBias: -0.15 + Math.random() * 0.55,
+        swayPhase: Math.random() * Math.PI * 2,
+        swaySpeed: 0.5 + Math.random() * 0.9,
+        swayAmp: 0.2 + Math.random() * 0.35,
+      });
+    }
+
+    // Longer claw-like spikes at the very tip, parented to the hand's own
+    // orientation so they curl however the controller/hand is turned.
     this.tipAnchor = new THREE.Object3D();
     this.claws = new THREE.Group();
-    const clawGeo = new THREE.ConeGeometry(0.012, 0.09, 8);
-    clawGeo.translate(0, 0.045, 0);
-    const clawCount = 4;
+    const clawCount = 3;
     for (let i = 0; i < clawCount; i++) {
+      const length = 0.11 + Math.random() * 0.1;
+      const radius = 0.008 + Math.random() * 0.006;
+      const clawGeo = new THREE.ConeGeometry(radius, length, 6);
+      clawGeo.translate(0, length / 2, 0);
       const claw = new THREE.Mesh(clawGeo, material);
-      const a = (i / clawCount) * Math.PI * 2;
-      claw.position.set(Math.cos(a) * 0.02, 0, Math.sin(a) * 0.02);
-      claw.rotation.x = Math.PI * 0.5 + 0.5;
-      claw.rotation.z = a;
+      const a = (i / clawCount) * Math.PI * 2 + Math.random() * 0.6;
+      const spread = 0.4 + Math.random() * 0.4;
+      claw.position.set(Math.cos(a) * 0.018, 0, Math.sin(a) * 0.018);
+      const dir = new THREE.Vector3(Math.cos(a) * spread, -0.7, Math.sin(a) * spread).normalize();
+      claw.quaternion.setFromUnitVectors(UP, dir);
       this.claws.add(claw);
     }
     this.tipAnchor.add(this.claws);
@@ -127,6 +171,7 @@ export class VenomArm {
   update(anchor, target, targetQuat, dt) {
     if (!this.initialized) this.reset(anchor, target);
     const clampedDt = Math.min(dt, 1 / 30);
+    this.elapsed += clampedDt;
     const points = this.points;
     const prev = this.prevPoints;
 
@@ -180,6 +225,7 @@ export class VenomArm {
     }
 
     this._rebuildMesh();
+    this._updateBranchSpikes();
 
     this.tipAnchor.position.copy(effectiveTarget);
     if (targetQuat) this.tipAnchor.quaternion.copy(targetQuat);
@@ -227,6 +273,11 @@ export class VenomArm {
       binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
       normal = new THREE.Vector3().crossVectors(binormal, tangent).normalize();
 
+      this._frameCenters[i].copy(center);
+      this._frameTangents[i].copy(tangent);
+      this._frameNormals[i].copy(normal);
+      this._frameBinormals[i].copy(binormal);
+
       const t = i / lengthSeg;
       const radius = THREE.MathUtils.lerp(this.baseRadius, this.tipRadius, t);
 
@@ -256,5 +307,29 @@ export class VenomArm {
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.normal.needsUpdate = true;
     this.geometry.computeBoundingSphere();
+  }
+
+  /** Plants each branch spike on the main tube's surface and lets it idly writhe. */
+  _updateBranchSpikes() {
+    const lengthSeg = this.lengthSegments;
+    const dir = new THREE.Vector3();
+    const radial = new THREE.Vector3();
+
+    for (const spike of this.branchSpikes) {
+      const index = Math.min(lengthSeg, Math.round(spike.tParam * lengthSeg));
+      const center = this._frameCenters[index];
+      const tangent = this._frameTangents[index];
+      const normal = this._frameNormals[index];
+      const binormal = this._frameBinormals[index];
+      const tubeRadius = THREE.MathUtils.lerp(this.baseRadius, this.tipRadius, index / lengthSeg);
+
+      const angle = spike.angleOffset + Math.sin(this.elapsed * spike.swaySpeed + spike.swayPhase) * spike.swayAmp;
+      radial.copy(normal).multiplyScalar(Math.cos(angle)).addScaledVector(binormal, Math.sin(angle));
+
+      dir.copy(radial).multiplyScalar(1 - Math.abs(spike.tangentBias)).addScaledVector(tangent, spike.tangentBias).normalize();
+
+      spike.mesh.position.copy(center).addScaledVector(radial, tubeRadius * 0.85);
+      spike.mesh.quaternion.setFromUnitVectors(UP, dir);
+    }
   }
 }

@@ -42,7 +42,7 @@ orbit.enableDamping = true;
 const venomMaterial = createVenomMaterial();
 const armLeft = new VenomArm({ material: venomMaterial, side: 'left' });
 const armRight = new VenomArm({ material: venomMaterial, side: 'right' });
-scene.add(armLeft.mesh, armLeft.tipAnchor, armRight.mesh, armRight.tipAnchor);
+scene.add(armLeft.mesh, armLeft.tipAnchor, armLeft.spikesGroup, armRight.mesh, armRight.tipAnchor, armRight.spikesGroup);
 
 // Raw controller + grip spaces give us tracked pose data; we don't attach
 // any visible controller model since the symbiote tendrils replace the hands.

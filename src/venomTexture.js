@@ -100,17 +100,17 @@ export function createVenomMaterial() {
   const emissiveMap = map;
 
   return new THREE.MeshPhysicalMaterial({
-    color: 0x0a0a0a,
+    color: 0x060607,
     map,
-    roughness: 0.32,
-    metalness: 0.05,
+    roughness: 0.18,
+    metalness: 0.15,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.18,
+    clearcoatRoughness: 0.06,
     emissive: new THREE.Color(0x6f8bff),
     emissiveMap,
-    emissiveIntensity: 0.22,
+    emissiveIntensity: 0.1,
     sheen: 1.0,
     sheenColor: new THREE.Color(0x223355),
-    sheenRoughness: 0.6,
+    sheenRoughness: 0.5,
   });
 }
