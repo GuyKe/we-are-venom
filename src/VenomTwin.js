@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { VenomArm } from './VenomArm.js';
 
 const IDLE_SWAY_RADIUS = 0.12;
+const FOLLOW_SPEED = 1.9; // meters per second
+const FOLLOW_STOP_DISTANCE = 1.1; // meters - how close it closes in before halting
 
 const LEG_RADIUS = 0.1;
 const LEG_LENGTH = 0.62;
@@ -17,11 +19,13 @@ const HEAD_RADIUS = 0.17;
 const HEAD_Y = TORSO_TOP + HEAD_RADIUS;
 
 /**
- * A standing Venom figure facing the player: a simple black glossy body
- * (same material as the player's own tendrils) topped with a pair of
- * iconic wide white eyes, and two real VenomArm floppy tendrils for arms -
+ * A standing Venom (or Carnage, given a different material) figure: a
+ * simple glossy body topped with a pair of iconic wide white eyes and a
+ * jagged-toothed mouth, with two real VenomArm floppy tendrils for arms -
  * "floppy like you" - idly swaying on their own rather than being
- * controller-driven.
+ * controller-driven. Optionally walks toward and faces a followTarget
+ * each frame (see update()), snapping to whatever floor a FloorMap says
+ * is beneath it - so it can chase the player right through a floor hatch.
  */
 export class VenomTwin {
   constructor(scene, material, position) {
@@ -117,19 +121,48 @@ export class VenomTwin {
     this.group.add(tongueLower);
   }
 
-  update(dt) {
+  /**
+   * @param {number} dt
+   * @param {THREE.Vector3} [followTarget] world position to walk toward and face
+   * @param {import('./Gravity.js').Faller} [faller] keeps it grounded on
+   *        whatever floor is beneath it (falls through a hatch it walks over)
+   */
+  update(dt, followTarget = null, faller = null) {
     this.elapsed += dt;
 
-    const anchorL = this._tmpAnchor.copy(this.shoulderOffsetLeft).add(this.group.position);
-    const targetL = this._tmpTarget.copy(this.handRestLeft).add(this.group.position);
+    if (followTarget) {
+      const dx = followTarget.x - this.group.position.x;
+      const dz = followTarget.z - this.group.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > FOLLOW_STOP_DISTANCE) {
+        const step = Math.min(dist - FOLLOW_STOP_DISTANCE, FOLLOW_SPEED * dt);
+        this.group.position.x += (dx / dist) * step;
+        this.group.position.z += (dz / dist) * step;
+      }
+      if (dist > 0.01) {
+        this.group.rotation.y = Math.atan2(dx, dz);
+      }
+    }
+
+    if (faller) faller.update(this.group.position, dt);
+
+    const groupQuat = this.group.quaternion;
+    const anchorL = this._tmpAnchor
+      .copy(this.shoulderOffsetLeft)
+      .applyQuaternion(groupQuat)
+      .add(this.group.position);
+    const targetL = this._tmpTarget.copy(this.handRestLeft).applyQuaternion(groupQuat).add(this.group.position);
     targetL.x += Math.sin(this.elapsed * 0.8) * IDLE_SWAY_RADIUS;
     targetL.z += Math.cos(this.elapsed * 0.6) * IDLE_SWAY_RADIUS;
-    this.armLeft.update(anchorL, targetL, this._identityQuat, dt);
+    this.armLeft.update(anchorL, targetL, groupQuat, dt);
 
-    const anchorR = this._tmpAnchor.copy(this.shoulderOffsetRight).add(this.group.position);
-    const targetR = this._tmpTarget.copy(this.handRestRight).add(this.group.position);
+    const anchorR = this._tmpAnchor
+      .copy(this.shoulderOffsetRight)
+      .applyQuaternion(groupQuat)
+      .add(this.group.position);
+    const targetR = this._tmpTarget.copy(this.handRestRight).applyQuaternion(groupQuat).add(this.group.position);
     targetR.x += Math.sin(this.elapsed * 0.7 + 2) * IDLE_SWAY_RADIUS;
     targetR.z += Math.cos(this.elapsed * 0.9 + 1) * IDLE_SWAY_RADIUS;
-    this.armRight.update(anchorR, targetR, this._identityQuat, dt);
+    this.armRight.update(anchorR, targetR, groupQuat, dt);
   }
 }

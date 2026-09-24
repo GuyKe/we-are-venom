@@ -7,6 +7,7 @@ import { VenomArm } from './VenomArm.js';
 import { VenomTwin } from './VenomTwin.js';
 import { Locomotion } from './Locomotion.js';
 import { SludgeForm } from './Sludge.js';
+import { FloorMap, Faller } from './Gravity.js';
 
 const intro = document.getElementById('intro');
 
@@ -23,7 +24,30 @@ renderer.xr.enabled = true;
 document.getElementById('app').appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
-const { spawnPosition, npcPosition, carnagePosition } = buildRoom(scene);
+const { width, depth, groundY, hole, spawnPosition, npcPosition, carnagePosition } = buildRoom(scene);
+
+// Floor lookup for gravity: the upper room's floor (with its hatch hole)
+// sits above everything else, which all shares the ground-floor height -
+// stepping into the hatch (or off any edge) drops you to the ground floor.
+const floorMap = new FloorMap();
+floorMap.addRegion({
+  minX: -width / 2,
+  maxX: width / 2,
+  minZ: -depth / 2,
+  maxZ: depth / 2,
+  y: 0,
+  holes: [
+    {
+      minX: hole.x - hole.w / 2,
+      maxX: hole.x + hole.w / 2,
+      minZ: hole.z - hole.d / 2,
+      maxZ: hole.z + hole.d / 2,
+    },
+  ],
+});
+floorMap.addRegion({ minX: -Infinity, maxX: Infinity, minZ: -Infinity, maxZ: Infinity, y: groundY });
+const playerFaller = new Faller(floorMap);
+const venomFaller = new Faller(floorMap);
 
 // Player rig ("dolly"): move this to move the player around the room.
 const rig = new THREE.Group();
@@ -207,9 +231,13 @@ renderer.setAnimationLoop(() => {
     updateDesktopTargets(t);
   }
 
+  // Sludge fully owns the player's height while active; gravity resumes
+  // once they revert to normal size.
+  if (!sludge.active) playerFaller.update(rig.position, dt);
+
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);
-  venomTwin.update(dt);
+  venomTwin.update(dt, rig.position, venomFaller);
   carnageTwin.update(dt);
 
   renderer.render(scene, camera);

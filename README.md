@@ -2,11 +2,13 @@
 
 A Meta Quest WebXR scene built with Three.js. A symbiote has bonded to your
 arms: they hang as floppy, whip-like black tendrils that follow your VR
-controllers with real verlet-rope physics. You wake up standing in a quiet
-room on the second floor of a building - right in front of you is another
-symbiote figure with the same floppy tendril arms as your own, jagged
-teeth, and a lolling tongue. Two windows on the side wall look down onto a
-crate-filled yard below, where Carnage is lurking.
+controllers with real verlet-rope physics. You wake up standing on a small
+green floor on the second floor of a building - right in front of you is
+another symbiote figure with the same floppy tendril arms as your own,
+jagged teeth, and a lolling tongue, and it never stops following you. Two
+windows on the side wall look down onto a crate-filled yard below, where
+Carnage is lurking, and a hatch in the floor drops you straight down to
+the ground floor if you walk into it.
 
 ## Why WebXR
 
@@ -35,18 +37,26 @@ Browser, and you can iterate by just refreshing the page.
   turns you into a very short, ground-hugging puddle of symbiote that moves
   at a medium pace instead of a full-size humanoid: your whole rig sinks
   down, both arms hide, and your move speed changes.
-- **A room on the second floor** — a plain indoor room (mildly randomized
-  dimensions each load) with two windows cut into its side wall, looking
-  down onto an exterior yard a full story below.
-- **Your symbiote twin** — a standing Venom figure waits in the room, built
-  from the same glossy black material and the same floppy tendril-arm system
-  as the player: wide white eyes, a gaping jagged-toothed mouth, and a long
-  lolling tongue. Its arms idly sway on their own rather than being
-  controller-driven.
+- **A room on the second floor** — a small green-floored room (mildly
+  randomized dimensions each load) with two windows cut into its side wall,
+  looking down onto an exterior yard a full story below.
+- **A hatch to the ground floor, and real gravity** — a rectangular hole is
+  cut into the room's floor; step into it (or off any other edge) and you
+  actually fall to whatever's below instead of floating in place, landing
+  on the ground floor one story down. A lightweight floor-region lookup
+  (`Gravity.js`) stands in for a physics engine: it just asks "what's the
+  highest floor under this X/Z?" and falls you toward it.
+- **Your symbiote twin follows you** — a standing Venom figure shares the
+  room with you, built from the same glossy black material and the same
+  floppy tendril-arm system as the player: wide white eyes, a gaping
+  jagged-toothed mouth, and a long lolling tongue. It continuously walks
+  toward you and turns to face you as you move, using the same gravity
+  lookup - so it'll chase you right through the floor hatch and down to
+  the ground floor.
 - **Carnage in the yard** — outside the windows, one story down, sits a
   crate-scattered yard lit by a dim red glow - and lurking among the crates
-  is a Carnage twin of the same figure, reskinned in a glossy blood-red
-  material with black cracks instead of Venom's black-and-white.
+  is a Carnage twin of the same figure (stationary), reskinned in a glossy
+  blood-red material with black cracks instead of Venom's black-and-white.
 - **Desktop preview** — no headset handy? Click the intro screen to look
   around the room with mouse-orbit; the tendrils animate on simulated hand
   targets so you can sanity-check the scene on a monitor.
@@ -68,9 +78,10 @@ index.html          Entry HTML + intro overlay
 src/main.js          Scene setup, XR rig wiring, render loop
 src/VenomArm.js       Verlet tendril simulation + tapered tube mesh + claws
 src/venomTexture.js   Procedural black/white "symbiote crack" canvas texture
-src/VenomTwin.js      Standing Venom/Carnage figure (body + face + a pair of VenomArms)
+src/VenomTwin.js      Standing/following Venom or Carnage figure (body + face + a pair of VenomArms)
 src/Sludge.js         Short/medium-speed sludge form toggle
-src/Room.js           Second-floor room, side windows, exterior yard + crates
+src/Gravity.js        Floor-region lookup + fall-to-the-floor-below gravity
+src/Room.js           Second floor (with a floor hatch) + ground floor + yard + crates
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
 ```
 
@@ -112,7 +123,9 @@ the Quest Browser — no local dev server needed at that point.
 - `Sludge.js` constants: `HEIGHT_DROP` (how short the sludge form is) and
   `SLUDGE_MOVE_SPEED`.
 - `Room.js`: the random width/depth range, `sillY`/`windowH` (window size and
-  height), `FLOOR_DROP` (how far below the yard sits), and the crate
-  count/spread in `addCrates(...)`.
+  height), `FLOOR_DROP` (how far below the ground floor sits), the `hole`
+  object (hatch position/size), and the crate count/spread in `addCrates(...)`.
 - `venomTexture.js`: `createCarnageMaterial()`'s color options control
   Carnage's red/black skin tone.
+- `VenomTwin.js`: `FOLLOW_SPEED` and `FOLLOW_STOP_DISTANCE` control how fast
+  it closes in and how close it gets before stopping.

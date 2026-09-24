@@ -15,7 +15,7 @@ export class SludgeForm {
     this.hideWhileActive = hideWhileActive;
     this.active = false;
     this.normalMoveSpeed = locomotion.moveSpeed;
-    this.normalRigY = rig.position.y;
+    this.preSludgeY = rig.position.y;
 
     const geometry = new THREE.SphereGeometry(0.26, 16, 10);
     geometry.scale(1, 0.32, 1);
@@ -32,7 +32,16 @@ export class SludgeForm {
   setActive(active) {
     if (active === this.active) return;
     this.active = active;
-    this.rig.position.y = active ? this.normalRigY - HEIGHT_DROP : this.normalRigY;
+    if (active) {
+      // Capture whatever floor the player is currently standing on (they
+      // may have fallen to a different level since the last toggle) so
+      // deactivating puts them back exactly where they were, not wherever
+      // they started the session.
+      this.preSludgeY = this.rig.position.y;
+      this.rig.position.y = this.preSludgeY - HEIGHT_DROP;
+    } else {
+      this.rig.position.y = this.preSludgeY;
+    }
     this.locomotion.moveSpeed = active ? SLUDGE_MOVE_SPEED : this.normalMoveSpeed;
     this.blobMesh.visible = active;
     for (const obj of this.hideWhileActive) obj.visible = !active;
