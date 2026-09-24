@@ -148,6 +148,28 @@ function updateDesktopTargets(t) {
   );
 }
 
+// The Quest right controller's "B" button lashes the right tendril out and
+// back (a one-shot pulse - see VenomArm.triggerExtend). Edge-detected so
+// holding the button doesn't keep re-triggering it.
+let bButtonWasPressed = false;
+function checkExtendButton() {
+  const session = renderer.xr.getSession();
+  if (!session) return;
+  for (const source of session.inputSources) {
+    if (source.handedness !== 'right' || !source.gamepad) continue;
+    const button = source.gamepad.buttons[5]; // xr-standard: 4=A/X, 5=B/Y
+    const pressed = !!button && button.pressed;
+    if (pressed && !bButtonWasPressed) armRight.triggerExtend();
+    bButtonWasPressed = pressed;
+    return;
+  }
+}
+
+// Keyboard "B" mirrors the same lash-out for desktop preview/testing.
+window.addEventListener('keydown', (event) => {
+  if (!event.repeat && event.key.toLowerCase() === 'b') armRight.triggerExtend();
+});
+
 const clock = new THREE.Clock();
 
 renderer.setAnimationLoop(() => {
@@ -157,6 +179,7 @@ renderer.setAnimationLoop(() => {
 
   if (inXR) {
     locomotion.update(dt);
+    checkExtendButton();
   } else {
     orbit.update();
     updateDesktopTargets(t);

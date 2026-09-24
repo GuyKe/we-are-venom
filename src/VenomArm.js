@@ -19,12 +19,19 @@ export class VenomArm {
     armLength = 0.8,
     baseRadius = 0.075,
     tipRadius = 0.028,
+    extendDistance = 1.0,
+    extendDuration = 1.0,
   }) {
     this.side = side;
     this.segmentCount = segmentCount;
     this.slack = slack;
     this.baseRadius = baseRadius;
     this.tipRadius = tipRadius;
+    this.extendDistance = extendDistance;
+    this.extendDuration = extendDuration;
+    this.extendTimer = 0;
+    this._extendedTarget = new THREE.Vector3();
+    this._forward = new THREE.Vector3();
 
     this.points = [];
     this.prevPoints = [];
@@ -106,6 +113,11 @@ export class VenomArm {
     this.initialized = true;
   }
 
+  /** Lash the tendril out along the hand's forward direction, then let it snap back. */
+  triggerExtend() {
+    this.extendTimer = this.extendDuration;
+  }
+
   /**
    * @param {THREE.Vector3} anchor world-space shoulder position (pinned start)
    * @param {THREE.Vector3} target world-space hand/controller position (pinned end)
@@ -118,6 +130,18 @@ export class VenomArm {
     const points = this.points;
     const prev = this.prevPoints;
 
+    let effectiveTarget = target;
+    if (this.extendTimer > 0) {
+      this.extendTimer = Math.max(0, this.extendTimer - dt);
+      const elapsed = this.extendDuration - this.extendTimer;
+      // A single smooth extend-then-retract pulse over extendDuration seconds.
+      const envelope = Math.sin(Math.PI * THREE.MathUtils.clamp(elapsed / this.extendDuration, 0, 1));
+      this._forward.set(0, 0, -1).applyQuaternion(targetQuat);
+      effectiveTarget = this._extendedTarget
+        .copy(target)
+        .addScaledVector(this._forward, this.extendDistance * envelope);
+    }
+
     // Verlet integration with gravity + light damping (floppiness)
     for (let i = 1; i < points.length - 1; i++) {
       const p = points[i];
@@ -126,11 +150,11 @@ export class VenomArm {
       p.add(velocity).addScaledVector(GRAVITY, clampedDt * clampedDt);
     }
 
-    // Pin the ends: shoulder anchor and hand target
+    // Pin the ends: shoulder anchor and hand target (or the extended lash tip)
     points[0].copy(anchor);
     prev[0].copy(anchor);
-    points[points.length - 1].copy(target);
-    prev[points.length - 1].copy(target);
+    points[points.length - 1].copy(effectiveTarget);
+    prev[points.length - 1].copy(effectiveTarget);
 
     // Distance constraints to keep the chain from stretching too far,
     // while remaining soft/floppy because we only relax a few iterations.
@@ -157,7 +181,7 @@ export class VenomArm {
 
     this._rebuildMesh();
 
-    this.tipAnchor.position.copy(target);
+    this.tipAnchor.position.copy(effectiveTarget);
     if (targetQuat) this.tipAnchor.quaternion.copy(targetQuat);
   }
 

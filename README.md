@@ -25,6 +25,9 @@ Browser, and you can iterate by just refreshing the page.
   burst, plays a synthesized thud, and increments a floating scoreboard.
 - **Comfort locomotion** — left thumbstick for smooth movement (relative to
   where you're looking), right thumbstick for snap turns.
+- **Tendril lash** — press the right controller's **B** button (or the `B`
+  key on desktop) to lash the right arm out to full extension for about a
+  second before it snaps back, for smashing orbs just out of normal reach.
 - **Desktop preview** — no headset handy? Click the intro screen to look
   around the arena with mouse-orbit; the tendrils animate on simulated hand
   targets so you can sanity-check the scene on a monitor.
