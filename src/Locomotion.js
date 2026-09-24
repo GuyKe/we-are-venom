@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const MOVE_SPEED = 2.2; // meters per second
+const DEFAULT_MOVE_SPEED = 2.2; // meters per second
 const SNAP_ANGLE = THREE.MathUtils.degToRad(35);
 const SNAP_DEBOUNCE = 0.35; // seconds
 const DEADZONE = 0.18;
@@ -16,9 +16,13 @@ export class Locomotion {
     this.rig = rig;
     this.camera = camera;
     this.renderer = renderer;
+    // Public so other systems (e.g. the sludge transformation) can change
+    // the player's pace on the fly.
+    this.moveSpeed = DEFAULT_MOVE_SPEED;
     this._snapCooldown = 0;
     this._forward = new THREE.Vector3();
     this._right = new THREE.Vector3();
+    this._cameraQuat = new THREE.Quaternion();
   }
 
   _getGamepads() {
@@ -40,7 +44,10 @@ export class Locomotion {
       const x = left.axes[2] ?? left.axes[0] ?? 0;
       const y = left.axes[3] ?? left.axes[1] ?? 0;
       if (Math.abs(x) > DEADZONE || Math.abs(y) > DEADZONE) {
-        this.camera.getWorldDirection(this._forward);
+        // The camera looks down its local -Z axis, not +Z (which is what
+        // Object3D.getWorldDirection returns), so build "forward" by hand.
+        this.camera.getWorldQuaternion(this._cameraQuat);
+        this._forward.set(0, 0, -1).applyQuaternion(this._cameraQuat);
         this._forward.y = 0;
         this._forward.normalize();
         this._right.crossVectors(this._forward, new THREE.Vector3(0, 1, 0)).negate();
@@ -49,7 +56,7 @@ export class Locomotion {
         move.addScaledVector(this._forward, -y);
         move.addScaledVector(this._right, x);
         if (move.lengthSq() > 1) move.normalize();
-        this.rig.position.addScaledVector(move, MOVE_SPEED * dt);
+        this.rig.position.addScaledVector(move, this.moveSpeed * dt);
       }
     }
 

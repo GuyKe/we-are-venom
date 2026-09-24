@@ -103,6 +103,7 @@ export class RagdollHuman {
     this.state = 'standing';
     this.grabs = { left: null, right: null };
     this.settleTimer = 0;
+    this.possessed = false;
 
     this.points = REST_OFFSETS.map(() => new THREE.Vector3());
     this.prevPoints = REST_OFFSETS.map(() => new THREE.Vector3());
@@ -190,6 +191,21 @@ export class RagdollHuman {
 
   releaseGrab(side) {
     this.grabs[side] = null;
+  }
+
+  /**
+   * Marks him as taken over by the symbiote sludge: recolors him into a
+   * glossy black husk so there's a lasting, visible sign he's been
+   * possessed. Idempotent - only the first call has any effect.
+   */
+  markPossessed() {
+    if (this.possessed) return;
+    this.possessed = true;
+    this.suitMaterial.color.set(0x050506);
+    this.suitMaterial.roughness = 0.25;
+    this.suitMaterial.metalness = 0.2;
+    this.skinMaterial.color.set(0x1a1c22);
+    this.skinMaterial.roughness = 0.3;
   }
 
   /**

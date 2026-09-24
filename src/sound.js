@@ -39,3 +39,28 @@ export function playSmashSound() {
   noise.start(now);
   noise.stop(now + 0.08);
 }
+
+/** A rising, sludgy synthesized tone for the symbiote taking over a host. */
+export function playPossessSound() {
+  const ctx = getContext();
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(70, now);
+  osc.frequency.exponentialRampToValueAtTime(320, now + 0.5);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(300, now);
+  filter.frequency.exponentialRampToValueAtTime(2200, now + 0.5);
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.35, now + 0.15);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+
+  osc.connect(filter).connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.55);
+}

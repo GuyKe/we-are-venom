@@ -47,6 +47,13 @@ Browser, and you can iterate by just refreshing the page.
   technique as the arms), so he tumbles and drags realistically and
   collapses in a heap when you let go. He stands back up on his own a few
   seconds after being released.
+- **Sludge form & takeover** — the left controller's **Y** button turns you
+  into a very short, ground-hugging puddle of symbiote that moves at a
+  medium pace instead of a full-size humanoid (no arms while you're a
+  puddle - your whole rig sinks down and your move speed changes). Crawl
+  into the ragdoll while in sludge form and you take him over: he's
+  permanently recolored into a glossy black husk and you snap back to your
+  normal size and speed, ready to grab someone else.
 
 ## Controls
 
@@ -58,6 +65,7 @@ Browser, and you can iterate by just refreshing the page.
 | Lash left arm out & back   | Left controller **X**         | `X` key                 |
 | Grab the ragdoll (right hand) | Right controller **grip**  | `G` key (aims with the camera) |
 | Grab the ragdoll (left hand)  | Left controller **grip**   | `F` key (aims with the camera) |
+| Toggle sludge form          | Left controller **Y**        | `Y` key |
 
 ## Project layout
 
@@ -67,11 +75,12 @@ src/main.js          Scene setup, XR rig wiring, render loop
 src/VenomArm.js       Verlet tendril simulation + tapered tube mesh + claws
 src/venomTexture.js   Procedural black/white "symbiote crack" canvas texture
 src/Ragdoll.js        Grabbable verlet-physics ragdoll person
+src/Sludge.js         Short/medium-speed sludge form + touch-to-possess
 src/Environment.js    Baseplate arena, starfield, lighting
 src/TargetOrbs.js     Smash-game orbs, hit detection, particle bursts
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
 src/Hud.js            Floating canvas-texture scoreboard sign
-src/sound.js          WebAudio-synthesized hit sound (no audio files)
+src/sound.js          WebAudio-synthesized hit/possess sounds (no audio files)
 ```
 
 ## Run it locally
@@ -114,3 +123,6 @@ the Quest Browser — no local dev server needed at that point.
   `MIN_ROPE_LENGTH`, `RESPAWN_DELAY` (seconds before he stands back up), and
   the `tryGrab(..., maxDistance, grabRadius)` arguments in `main.js` control
   how far away and how forgiving the grab raycast is.
+- `Sludge.js` constants: `HEIGHT_DROP` (how short the sludge form is),
+  `SLUDGE_MOVE_SPEED`, and `TOUCH_RADIUS` (how close you need to crawl to
+  the ragdoll to take him over).

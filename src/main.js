@@ -6,9 +6,10 @@ import { createVenomMaterial } from './venomTexture.js';
 import { VenomArm } from './VenomArm.js';
 import { RagdollHuman } from './Ragdoll.js';
 import { Locomotion } from './Locomotion.js';
+import { SludgeForm } from './Sludge.js';
 import { TargetOrbs } from './TargetOrbs.js';
 import { Hud } from './Hud.js';
-import { playSmashSound } from './sound.js';
+import { playSmashSound, playPossessSound } from './sound.js';
 
 const intro = document.getElementById('intro');
 
@@ -108,6 +109,15 @@ const orbs = new TargetOrbs(scene, {
 });
 
 const locomotion = new Locomotion(rig, camera, renderer);
+
+const sludge = new SludgeForm(rig, locomotion, venomMaterial, [
+  armLeft.mesh,
+  armLeft.tipAnchor,
+  armLeft.spikesGroup,
+  armRight.mesh,
+  armRight.tipAnchor,
+  armRight.spikesGroup,
+]);
 
 renderer.xr.addEventListener('sessionstart', () => {
   intro.classList.add('hidden');
@@ -215,13 +225,32 @@ function checkExtendButtons() {
   }
 }
 
+// The left controller's Y button toggles the sludge form (xr-standard
+// button index 5 is the secondary face button - B on the right controller,
+// Y on the left). Edge-detected so holding it doesn't keep re-toggling.
+let sludgeButtonWasPressed = false;
+function checkSludgeButton() {
+  const session = renderer.xr.getSession();
+  if (!session) return;
+  for (const source of session.inputSources) {
+    if (source.handedness !== 'left' || !source.gamepad) continue;
+    const button = source.gamepad.buttons[5];
+    const pressed = !!button && button.pressed;
+    if (pressed && !sludgeButtonWasPressed) sludge.toggle();
+    sludgeButtonWasPressed = pressed;
+    return;
+  }
+}
+
 // Keyboard "B"/"X" mirror the same lash-out for desktop preview/testing.
 // "G"/"F" mirror the right/left grip (aiming with wherever the camera looks).
+// "Y" mirrors the left controller's sludge-form toggle.
 window.addEventListener('keydown', (event) => {
   if (event.repeat) return;
   const key = event.key.toLowerCase();
   if (key === 'b') armRight.triggerExtend();
   if (key === 'x') armLeft.triggerExtend();
+  if (key === 'y') sludge.toggle();
   if (renderer.xr.isPresenting) return;
   if (key === 'g') attemptGrab('right', camera);
   if (key === 'f') attemptGrab('left', camera);
@@ -243,6 +272,7 @@ renderer.setAnimationLoop(() => {
   if (inXR) {
     locomotion.update(dt);
     checkExtendButtons();
+    checkSludgeButton();
   } else {
     orbit.update();
     updateDesktopTargets(t);
@@ -252,6 +282,11 @@ renderer.setAnimationLoop(() => {
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);
   ragdoll.update(dt, handWorldPositions);
+
+  if (sludge.checkTouch(ragdoll.getParticlePosition(RagdollHuman.PARTICLE.PELVIS))) {
+    ragdoll.markPossessed();
+    playPossessSound();
+  }
 
   orbs.update(dt, [
     { position: armLeft.getTip(), velocity: tipVelocities.left },
