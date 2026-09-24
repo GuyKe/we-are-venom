@@ -2,12 +2,11 @@ import * as THREE from 'three';
 
 const HEIGHT_DROP = 1.35; // meters the rig sinks by while in sludge form
 const SLUDGE_MOVE_SPEED = 1.5; // meters per second - a deliberate "medium" pace
-const TOUCH_RADIUS = 0.55; // meters (ground-plane distance) to trigger a takeover
 
 /**
  * The symbiote's alternate "sludge" form: a very short, ground-hugging
- * puddle that moves at a medium pace instead of a full-size humanoid. It
- * has no arms - just crawl into a ragdoll to take it over.
+ * puddle that moves at a medium pace instead of a full-size humanoid, with
+ * no arms while it's active.
  */
 export class SludgeForm {
   constructor(rig, locomotion, material, hideWhileActive) {
@@ -37,19 +36,5 @@ export class SludgeForm {
     this.locomotion.moveSpeed = active ? SLUDGE_MOVE_SPEED : this.normalMoveSpeed;
     this.blobMesh.visible = active;
     for (const obj of this.hideWhileActive) obj.visible = !active;
-  }
-
-  /**
-   * Checks whether the sludge has crawled into the given world-space point
-   * (e.g. the ragdoll's pelvis). If so, reverts to normal form and reports
-   * the takeover so the caller can react (recolor the ragdoll, play a cue).
-   */
-  checkTouch(targetWorldPos) {
-    if (!this.active) return false;
-    const dx = this.rig.position.x - targetWorldPos.x;
-    const dz = this.rig.position.z - targetWorldPos.z;
-    if (dx * dx + dz * dz > TOUCH_RADIUS * TOUCH_RADIUS) return false;
-    this.setActive(false);
-    return true;
   }
 }
