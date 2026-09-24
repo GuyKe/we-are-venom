@@ -5,7 +5,7 @@ import * as THREE from 'three';
  * branching white "muscle crack" veins, like the comic/movie creature design.
  * No external image assets needed - everything is drawn on a canvas.
  */
-function drawCracks(ctx, size, originX, originY, seedAngle, depth, maxDepth, width) {
+function drawCracks(ctx, size, originX, originY, seedAngle, depth, maxDepth, width, crackRGB) {
   if (depth > maxDepth) return;
 
   let x = originX;
@@ -15,7 +15,7 @@ function drawCracks(ctx, size, originX, originY, seedAngle, depth, maxDepth, wid
   const steps = 4 + Math.floor(Math.random() * 5);
 
   ctx.lineWidth = Math.max(0.6, width);
-  ctx.strokeStyle = `rgba(255,255,255,${0.85 - depth * 0.12})`;
+  ctx.strokeStyle = `rgba(${crackRGB},${0.85 - depth * 0.12})`;
 
   for (let i = 0; i < steps; i++) {
     const nx = x + Math.cos(angle) * stepLength;
@@ -36,7 +36,8 @@ function drawCracks(ctx, size, originX, originY, seedAngle, depth, maxDepth, wid
         angle + (Math.random() - 0.5) * 2.2,
         depth + 1,
         maxDepth,
-        width * 0.6
+        width * 0.6,
+        crackRGB
       );
     }
 
@@ -48,29 +49,35 @@ function drawCracks(ctx, size, originX, originY, seedAngle, depth, maxDepth, wid
   }
 }
 
-export function createVenomTexture({ size = 1024, crackCount = 14 } = {}) {
+export function createVenomTexture({
+  size = 1024,
+  crackCount = 14,
+  baseColorStops = ['#141414', '#050505', '#000000'],
+  crackRGB = '255,255,255',
+  speckleRGB = '255,255,255',
+} = {}) {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  // Glossy black base with a very subtle radial sheen
+  // Glossy base with a very subtle radial sheen
   const base = ctx.createRadialGradient(
     size * 0.5, size * 0.4, size * 0.05,
     size * 0.5, size * 0.5, size * 0.75
   );
-  base.addColorStop(0, '#141414');
-  base.addColorStop(0.5, '#050505');
-  base.addColorStop(1, '#000000');
+  base.addColorStop(0, baseColorStops[0]);
+  base.addColorStop(0.5, baseColorStops[1]);
+  base.addColorStop(1, baseColorStops[2]);
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, size, size);
 
-  // Branching white symbiote cracks
+  // Branching symbiote cracks
   for (let i = 0; i < crackCount; i++) {
     const ox = Math.random() * size;
     const oy = Math.random() * size;
     const angle = Math.random() * Math.PI * 2;
-    drawCracks(ctx, size, ox, oy, angle, 0, 3, size * 0.006);
+    drawCracks(ctx, size, ox, oy, angle, 0, 3, size * 0.006, crackRGB);
   }
 
   // Fine speckle noise for an organic, wet texture
@@ -80,7 +87,7 @@ export function createVenomTexture({ size = 1024, crackCount = 14 } = {}) {
     const y = Math.random() * size;
     const r = Math.random() * 1.3;
     const a = Math.random() * 0.06;
-    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.fillStyle = `rgba(${speckleRGB},${a})`;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
@@ -97,7 +104,6 @@ export function createVenomTexture({ size = 1024, crackCount = 14 } = {}) {
 export function createVenomMaterial() {
   const map = createVenomTexture();
   map.repeat.set(1, 3);
-  const emissiveMap = map;
 
   return new THREE.MeshPhysicalMaterial({
     color: 0x060607,
@@ -107,10 +113,35 @@ export function createVenomMaterial() {
     clearcoat: 1.0,
     clearcoatRoughness: 0.06,
     emissive: new THREE.Color(0x6f8bff),
-    emissiveMap,
+    emissiveMap: map,
     emissiveIntensity: 0.1,
     sheen: 1.0,
     sheenColor: new THREE.Color(0x223355),
+    sheenRoughness: 0.5,
+  });
+}
+
+/** Carnage's skin: a glossy blood-red base with branching black cracks. */
+export function createCarnageMaterial() {
+  const map = createVenomTexture({
+    baseColorStops: ['#7a0f14', '#3f0509', '#180203'],
+    crackRGB: '10,4,4',
+    speckleRGB: '20,0,0',
+  });
+  map.repeat.set(1, 3);
+
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x4a0407,
+    map,
+    roughness: 0.2,
+    metalness: 0.1,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.08,
+    emissive: new THREE.Color(0xff2a1a),
+    emissiveMap: map,
+    emissiveIntensity: 0.12,
+    sheen: 1.0,
+    sheenColor: new THREE.Color(0x550a0a),
     sheenRoughness: 0.5,
   });
 }

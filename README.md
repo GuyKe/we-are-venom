@@ -3,9 +3,10 @@
 A Meta Quest WebXR scene built with Three.js. A symbiote has bonded to your
 arms: they hang as floppy, whip-like black tendrils that follow your VR
 controllers with real verlet-rope physics. You wake up standing in a quiet
-room with two windows looking out onto a grass field - and right in front
-of you is another symbiote figure, with the same floppy tendril arms as
-your own.
+room on the second floor of a building - right in front of you is another
+symbiote figure with the same floppy tendril arms as your own, jagged
+teeth, and a lolling tongue. Two windows on the side wall look down onto a
+crate-filled yard below, where Carnage is lurking.
 
 ## Why WebXR
 
@@ -34,13 +35,18 @@ Browser, and you can iterate by just refreshing the page.
   turns you into a very short, ground-hugging puddle of symbiote that moves
   at a medium pace instead of a full-size humanoid: your whole rig sinks
   down, both arms hide, and your move speed changes.
-- **A room with a view** — a plain indoor room (mildly randomized dimensions
-  each load) with two windows cut into its far wall, looking out onto an
-  exterior grass field under open sky.
+- **A room on the second floor** — a plain indoor room (mildly randomized
+  dimensions each load) with two windows cut into its side wall, looking
+  down onto an exterior yard a full story below.
 - **Your symbiote twin** — a standing Venom figure waits in the room, built
   from the same glossy black material and the same floppy tendril-arm system
-  as the player, topped with a pair of iconic wide white eyes. Its arms idly
-  sway on their own rather than being controller-driven.
+  as the player: wide white eyes, a gaping jagged-toothed mouth, and a long
+  lolling tongue. Its arms idly sway on their own rather than being
+  controller-driven.
+- **Carnage in the yard** — outside the windows, one story down, sits a
+  crate-scattered yard lit by a dim red glow - and lurking among the crates
+  is a Carnage twin of the same figure, reskinned in a glossy blood-red
+  material with black cracks instead of Venom's black-and-white.
 - **Desktop preview** — no headset handy? Click the intro screen to look
   around the room with mouse-orbit; the tendrils animate on simulated hand
   targets so you can sanity-check the scene on a monitor.
@@ -62,9 +68,9 @@ index.html          Entry HTML + intro overlay
 src/main.js          Scene setup, XR rig wiring, render loop
 src/VenomArm.js       Verlet tendril simulation + tapered tube mesh + claws
 src/venomTexture.js   Procedural black/white "symbiote crack" canvas texture
-src/VenomTwin.js      The standing Venom figure (body + a pair of VenomArms)
+src/VenomTwin.js      Standing Venom/Carnage figure (body + face + a pair of VenomArms)
 src/Sludge.js         Short/medium-speed sludge form toggle
-src/Room.js           Indoor room, two windows, exterior grass field
+src/Room.js           Second-floor room, side windows, exterior yard + crates
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
 ```
 
@@ -106,4 +112,7 @@ the Quest Browser — no local dev server needed at that point.
 - `Sludge.js` constants: `HEIGHT_DROP` (how short the sludge form is) and
   `SLUDGE_MOVE_SPEED`.
 - `Room.js`: the random width/depth range, `sillY`/`windowH` (window size and
-  height), and the grass `PlaneGeometry` size/position.
+  height), `FLOOR_DROP` (how far below the yard sits), and the crate
+  count/spread in `addCrates(...)`.
+- `venomTexture.js`: `createCarnageMaterial()`'s color options control
+  Carnage's red/black skin tone.

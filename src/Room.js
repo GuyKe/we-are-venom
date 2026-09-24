@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 const WALL_THICKNESS = 0.25;
+const FLOOR_DROP = 3.6; // meters the yard sits below the room floor - we're one story up
 
 function createWoodFloorTexture() {
   const size = 512;
@@ -58,19 +59,33 @@ function createWallTexture() {
   return texture;
 }
 
-function createGrassTexture() {
+function createYardTexture() {
   const size = 512;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#3d7a2e';
+  ctx.fillStyle = '#6d6d70';
   ctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < 5000; i++) {
-    const g = 90 + Math.random() * 70;
-    ctx.fillStyle = `rgba(${(g * 0.3) | 0}, ${g | 0}, ${(g * 0.25) | 0}, 0.55)`;
-    ctx.fillRect(Math.random() * size, Math.random() * size, 1.5, 4 + Math.random() * 4);
+  for (let i = 0; i < 4000; i++) {
+    const g = 55 + Math.random() * 40;
+    ctx.fillStyle = `rgba(${g},${g},${g * 1.02},0.5)`;
+    ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
+  }
+  // Faint expansion-joint grid, like a concrete yard.
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i <= 4; i++) {
+    const p = (i / 4) * size;
+    ctx.beginPath();
+    ctx.moveTo(p, 0);
+    ctx.lineTo(p, size);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, p);
+    ctx.lineTo(size, p);
+    ctx.stroke();
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -80,25 +95,68 @@ function createGrassTexture() {
   return texture;
 }
 
-function addWindowWallBox(group, material, w, h, x, y, z) {
-  if (w <= 0 || h <= 0) return;
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, WALL_THICKNESS), material);
+function createCrateTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#8a5a34';
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(6, 6, size - 12, size - 12);
+  ctx.beginPath();
+  ctx.moveTo(6, 6);
+  ctx.lineTo(size - 6, size - 6);
+  ctx.moveTo(size - 6, 6);
+  ctx.lineTo(6, size - 6);
+  ctx.stroke();
+  for (let i = 0; i < 400; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.08})`;
+    ctx.fillRect(Math.random() * size, Math.random() * size, Math.random() * 30 + 4, 1.5);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function addWallBox(group, material, w, h, d, x, y, z) {
+  if (w <= 0 || h <= 0 || d <= 0) return;
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
   mesh.position.set(x, y, z);
   group.add(mesh);
 }
 
+function addCrates(scene, crateTex, count, centerX, centerZ, spread, groundY) {
+  const material = new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.85 });
+  for (let i = 0; i < count; i++) {
+    const size = 0.55 + Math.random() * 0.65;
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), material);
+    crate.position.set(
+      centerX + (Math.random() - 0.5) * spread,
+      groundY + size / 2,
+      centerZ + (Math.random() - 0.5) * spread
+    );
+    crate.rotation.y = Math.random() * Math.PI * 2;
+    scene.add(crate);
+  }
+}
+
 /**
- * A plain indoor room (mildly randomized dimensions each load) with two
- * windows cut into its far wall, looking out onto an exterior grass field
- * under open sky.
+ * A plain indoor room (mildly randomized dimensions each load) on the
+ * second floor of a building: two windows are cut into its right-hand
+ * wall, looking down onto an exterior yard scattered with crates.
  */
 export function buildRoom(scene) {
   const width = 8 + Math.random() * 3;
   const depth = 8 + Math.random() * 3;
   const height = 3.4;
 
-  scene.background = new THREE.Color(0x8fc7ea);
-  scene.fog = new THREE.FogExp2(0x9fd0ec, 0.02);
+  scene.background = new THREE.Color(0x1c2733);
+  scene.fog = new THREE.FogExp2(0x1c2733, 0.018);
 
   const group = new THREE.Group();
   scene.add(group);
@@ -123,36 +181,39 @@ export function buildRoom(scene) {
   const wallTex = createWallTexture();
   const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.92 });
 
-  const sideWallGeo = new THREE.PlaneGeometry(depth, height);
-  const leftWall = new THREE.Mesh(sideWallGeo, wallMat);
+  // Left wall - solid.
+  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(depth, height), wallMat);
   leftWall.position.set(-width / 2, height / 2, 0);
   leftWall.rotation.y = Math.PI / 2;
   group.add(leftWall);
 
-  const rightWall = new THREE.Mesh(sideWallGeo, wallMat);
-  rightWall.position.set(width / 2, height / 2, 0);
-  rightWall.rotation.y = -Math.PI / 2;
-  group.add(rightWall);
-
-  // Entrance wall, behind the player's spawn point - solid, no window.
+  // Entrance wall, behind the player's spawn point - solid.
   const backWall = new THREE.Mesh(new THREE.PlaneGeometry(width, height), wallMat);
   backWall.position.set(0, height / 2, depth / 2);
   backWall.rotation.y = Math.PI;
   group.add(backWall);
 
-  // Far wall, built from segments framing two window openings.
+  // Far wall - solid.
+  const farWall = new THREE.Mesh(new THREE.PlaneGeometry(width, height), wallMat);
+  farWall.position.set(0, height / 2, -depth / 2);
+  group.add(farWall);
+
+  // Right wall, built from segments framing two window openings.
   const sillY = 1.0;
   const windowH = 1.5;
   const lintelY = sillY + windowH;
-  const windowW = width * 0.22;
-  const postW = (width - windowW * 2) / 3;
-  const wallZ = -depth / 2;
+  const windowLen = depth * 0.22;
+  const postLen = (depth - windowLen * 2) / 3;
+  const wallX = width / 2;
 
-  addWindowWallBox(group, wallMat, width, sillY, 0, sillY / 2, wallZ);
-  addWindowWallBox(group, wallMat, width, height - lintelY, 0, lintelY + (height - lintelY) / 2, wallZ);
-  addWindowWallBox(group, wallMat, postW, windowH, -width / 2 + postW / 2, sillY + windowH / 2, wallZ);
-  addWindowWallBox(group, wallMat, postW, windowH, -width / 2 + 1.5 * postW + windowW, sillY + windowH / 2, wallZ);
-  addWindowWallBox(group, wallMat, postW, windowH, width / 2 - postW / 2, sillY + windowH / 2, wallZ);
+  addWallBox(group, wallMat, WALL_THICKNESS, sillY, depth, wallX, sillY / 2, 0);
+  addWallBox(group, wallMat, WALL_THICKNESS, height - lintelY, depth, wallX, lintelY + (height - lintelY) / 2, 0);
+  addWallBox(group, wallMat, WALL_THICKNESS, windowH, postLen, wallX, sillY + windowH / 2, -depth / 2 + postLen / 2);
+  addWallBox(
+    group, wallMat, WALL_THICKNESS, windowH, postLen,
+    wallX, sillY + windowH / 2, -depth / 2 + 1.5 * postLen + windowLen
+  );
+  addWallBox(group, wallMat, WALL_THICKNESS, windowH, postLen, wallX, sillY + windowH / 2, depth / 2 - postLen / 2);
 
   const glassMat = new THREE.MeshPhysicalMaterial({
     color: 0xbfe8ff,
@@ -161,37 +222,47 @@ export function buildRoom(scene) {
     roughness: 0.05,
     transmission: 0.6,
   });
-  const window1X = -width / 2 + postW + windowW / 2;
-  const window2X = -width / 2 + 2 * postW + 1.5 * windowW;
-  for (const wx of [window1X, window2X]) {
-    const pane = new THREE.Mesh(new THREE.PlaneGeometry(windowW * 0.94, windowH * 0.94), glassMat);
-    pane.position.set(wx, sillY + windowH / 2, wallZ + WALL_THICKNESS / 2 - 0.02);
+  const window1Z = -depth / 2 + postLen + windowLen / 2;
+  const window2Z = -depth / 2 + 2 * postLen + 1.5 * windowLen;
+  for (const wz of [window1Z, window2Z]) {
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(windowLen * 0.94, windowH * 0.94), glassMat);
+    pane.position.set(wallX - WALL_THICKNESS / 2 + 0.02, sillY + windowH / 2, wz);
+    pane.rotation.y = -Math.PI / 2;
     group.add(pane);
   }
 
-  // Exterior grass field, visible through the two window openings.
-  const grassTex = createGrassTexture();
-  grassTex.repeat.set(32, 32);
-  const grass = new THREE.Mesh(
-    new THREE.PlaneGeometry(160, 160),
-    new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 })
+  // Exterior yard, one story down - a Carnage-infested crate yard, seen
+  // through the windows and looking down on it since this room is up on
+  // the second floor.
+  const groundY = -FLOOR_DROP;
+  const yardTex = createYardTexture();
+  yardTex.repeat.set(24, 24);
+  const yard = new THREE.Mesh(
+    new THREE.PlaneGeometry(140, 140),
+    new THREE.MeshStandardMaterial({ map: yardTex, roughness: 0.95 })
   );
-  grass.rotation.x = -Math.PI / 2;
-  grass.position.set(0, -0.02, wallZ - 75);
-  scene.add(grass);
+  yard.rotation.x = -Math.PI / 2;
+  yard.position.set(wallX + 65, groundY, 0);
+  scene.add(yard);
 
-  const ambient = new THREE.HemisphereLight(0xdfe9ff, 0x4a4030, 0.85);
+  const crateTex = createCrateTexture();
+  addCrates(scene, crateTex, 14, wallX + 10, 1, 16, groundY);
+
+  const ambient = new THREE.HemisphereLight(0xaebfe0, 0x2a2318, 0.7);
   scene.add(ambient);
-  const fillAmbient = new THREE.AmbientLight(0xfff2df, 0.3);
+  const fillAmbient = new THREE.AmbientLight(0xfff2df, 0.25);
   scene.add(fillAmbient);
-  const sun = new THREE.DirectionalLight(0xfff3d6, 1.1);
-  sun.position.set(-4, 6, wallZ - 3); // angled as if streaming in through the windows
+  const sun = new THREE.DirectionalLight(0xdce8ff, 0.9);
+  sun.position.set(wallX + 8, 8, -4); // cool moonlight slanting in through the windows
   sun.target.position.set(0, height / 2, 0);
   scene.add(sun);
   scene.add(sun.target);
-  const fill = new THREE.PointLight(0xfff0dd, 0.6, 12, 2);
+  const fill = new THREE.PointLight(0xfff0dd, 0.5, 12, 2);
   fill.position.set(0, height - 0.3, depth / 2 - 1.5);
   scene.add(fill);
+  const yardLight = new THREE.PointLight(0xff5540, 2.5, 30, 2);
+  yardLight.position.set(wallX + 10, groundY + 4, 1);
+  scene.add(yardLight);
 
   return {
     width,
@@ -199,5 +270,6 @@ export function buildRoom(scene) {
     height,
     spawnPosition: new THREE.Vector3(0, 0, depth / 2 - 1.6),
     npcPosition: new THREE.Vector3(0, 0, -0.6),
+    carnagePosition: new THREE.Vector3(wallX + 11, groundY, 2),
   };
 }

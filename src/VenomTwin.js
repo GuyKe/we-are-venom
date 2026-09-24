@@ -48,15 +48,17 @@ export class VenomTwin {
     // Iconic wide white Venom eyes.
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0xf4f7ff });
     const eyeGeo = new THREE.SphereGeometry(1, 12, 10);
-    eyeGeo.scale(0.075, 0.045, 0.02);
+    eyeGeo.scale(0.065, 0.04, 0.02);
     const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-    leftEye.position.set(-0.075, HEAD_Y + 0.01, HEAD_RADIUS * 0.92);
+    leftEye.position.set(-0.085, HEAD_Y + 0.01, HEAD_RADIUS * 0.92);
     leftEye.rotation.z = 0.35;
     this.group.add(leftEye);
     const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-    rightEye.position.set(0.075, HEAD_Y + 0.01, HEAD_RADIUS * 0.92);
+    rightEye.position.set(0.085, HEAD_Y + 0.01, HEAD_RADIUS * 0.92);
     rightEye.rotation.z = -0.35;
     this.group.add(rightEye);
+
+    this._buildFace();
 
     // Floppy tendril arms - the same verlet-rope system the player uses,
     // so they visibly read as "the same kind of arms as you".
@@ -74,6 +76,45 @@ export class VenomTwin {
     this._tmpTarget = new THREE.Vector3();
     this._identityQuat = new THREE.Quaternion();
     this.elapsed = Math.random() * 10;
+  }
+
+  /** The gaping, jagged-toothed mouth with a lolling tongue. */
+  _buildFace() {
+    const mouthGeo = new THREE.SphereGeometry(1, 16, 12);
+    mouthGeo.scale(0.095, 0.05, 0.035);
+    const mouthMat = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.7 });
+    const mouth = new THREE.Mesh(mouthGeo, mouthMat);
+    mouth.position.set(0, HEAD_Y - 0.07, HEAD_RADIUS * 0.94);
+    this.group.add(mouth);
+
+    const toothMat = new THREE.MeshStandardMaterial({ color: 0xf4f0e6, roughness: 0.3 });
+    const toothGeo = new THREE.ConeGeometry(0.013, 0.045, 6);
+    const toothCount = 6;
+    for (let i = 0; i < toothCount; i++) {
+      const tx = -0.08 + (i / (toothCount - 1)) * 0.16;
+      const jitter = (i % 2 === 0 ? 1 : -1) * 0.006;
+
+      const upper = new THREE.Mesh(toothGeo, toothMat);
+      upper.position.set(tx, HEAD_Y - 0.048 + jitter * 0.3, HEAD_RADIUS * 0.96);
+      upper.rotation.x = Math.PI;
+      this.group.add(upper);
+
+      const lower = new THREE.Mesh(toothGeo, toothMat);
+      lower.position.set(tx, HEAD_Y - 0.096 - jitter * 0.3, HEAD_RADIUS * 0.96);
+      this.group.add(lower);
+    }
+
+    // A long lolling tongue, hanging out and curling forward/down.
+    const tongueMat = new THREE.MeshStandardMaterial({ color: 0xb32436, roughness: 0.35 });
+    const tongueUpper = new THREE.Mesh(new THREE.CapsuleGeometry(0.02, 0.07, 4, 8), tongueMat);
+    tongueUpper.position.set(0.015, HEAD_Y - 0.09, HEAD_RADIUS * 1.08);
+    tongueUpper.rotation.x = Math.PI / 2 - 0.25;
+    this.group.add(tongueUpper);
+
+    const tongueLower = new THREE.Mesh(new THREE.CapsuleGeometry(0.016, 0.1, 4, 8), tongueMat);
+    tongueLower.position.set(0.03, HEAD_Y - 0.17, HEAD_RADIUS * 1.22);
+    tongueLower.rotation.x = Math.PI / 2 + 0.55;
+    this.group.add(tongueLower);
   }
 
   update(dt) {
