@@ -2,13 +2,14 @@
 
 A Meta Quest WebXR scene built with Three.js. A symbiote has bonded to your
 arms: they hang as floppy, whip-like black tendrils that follow your VR
-controllers with real verlet-rope physics. You wake up standing on a small
-green floor on the second floor of a building - right in front of you is
-another symbiote figure with the same floppy tendril arms as your own,
-jagged teeth, and a lolling tongue, and it never stops following you. Two
-windows on the side wall look down onto a crate-filled yard below, where
-Carnage is lurking, and a hatch in the floor drops you straight down to
-the ground floor if you walk into it.
+controllers with real verlet-rope physics. You wake up in a retro,
+PS1-style classroom on the second floor of a building - checkered floor,
+blotchy low-res walls, a chalkboard, school desks, a door - and right in
+front of you is another symbiote figure with the same floppy tendril arms
+as your own, jagged teeth, and a lolling tongue, and it never stops
+following you. Three small windows on the side wall look down onto a
+crate-filled yard below, where Carnage is lurking, and a hatch in the
+floor drops you straight down to the ground floor if you walk into it.
 
 ## Why WebXR
 
@@ -37,8 +38,12 @@ Browser, and you can iterate by just refreshing the page.
   turns you into a very short, ground-hugging puddle of symbiote that moves
   at a medium pace instead of a full-size humanoid: your whole rig sinks
   down, both arms hide, and your move speed changes.
-- **A room on the second floor** — a small green-floored room (mildly
-  randomized dimensions each load) with two windows cut into its side wall,
+- **A retro PS1-style classroom** — a small room (mildly randomized
+  dimensions each load) styled after low-poly, low-res 32-bit-era horror
+  games: a blue/green checkered floor, blotchy low-resolution walls, a flat
+  black ceiling, a chalkboard with "Mrs. S..." chalked on it, a closed
+  door, and school desks scattered around (clear of the hatch and the
+  spawn point). Three small square windows are cut into the side wall,
   looking down onto an exterior yard a full story below.
 - **A hatch to the ground floor, and real gravity** — a rectangular hole is
   cut into the room's floor; step into it (or off any other edge) and you
@@ -122,9 +127,10 @@ the Quest Browser — no local dev server needed at that point.
   (arm thickness taper).
 - `Sludge.js` constants: `HEIGHT_DROP` (how short the sludge form is) and
   `SLUDGE_MOVE_SPEED`.
-- `Room.js`: the random width/depth range, `sillY`/`windowH` (window size and
-  height), `FLOOR_DROP` (how far below the ground floor sits), the `hole`
-  object (hatch position/size), and the crate count/spread in `addCrates(...)`.
+- `Room.js`: the random width/depth range, the window/desk layout inside
+  `buildWalls(...)`/`addDesks(...)`, `FLOOR_DROP` (how far below the ground
+  floor sits), the `hole` object (hatch position/size), and the crate
+  count/spread in `addCrates(...)`.
 - `venomTexture.js`: `createCarnageMaterial()`'s color options control
   Carnage's red/black skin tone.
 - `VenomTwin.js`: `FOLLOW_SPEED` and `FOLLOW_STOP_DISTANCE` control how fast

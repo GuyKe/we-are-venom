@@ -3,32 +3,26 @@ import * as THREE from 'three';
 const WALL_THICKNESS = 0.25;
 const FLOOR_DROP = 3.6; // meters the ground floor sits below the upper room
 
-function createFloorTexture(baseColor) {
-  const size = 512;
+// A deliberately tiny, blurry-when-stretched checkerboard - the PS1-era
+// look of a floor texture that's a handful of pixels magnified way up,
+// rather than a crisp modern tile pattern.
+function createCheckerFloorTexture() {
+  const size = 64;
+  const cells = 8;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
+  const palette = ['#2f6e63', '#3f8f7a', '#4aa5a0', '#2a5a6e', '#356b52', '#57a08c'];
 
-  ctx.fillStyle = baseColor;
-  ctx.fillRect(0, 0, size, size);
-
-  const planks = 8;
-  for (let i = 0; i < planks; i++) {
-    const y = (i / planks) * size;
-    const shade = Math.random() * 0.12;
-    ctx.fillStyle = `rgba(0,0,0,${shade})`;
-    ctx.fillRect(0, y, size, size / planks);
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(size, y);
-    ctx.stroke();
-  }
-  for (let i = 0; i < 500; i++) {
-    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.06})`;
-    ctx.fillRect(Math.random() * size, Math.random() * size, Math.random() * 40 + 5, 1);
+  const cell = size / cells;
+  for (let y = 0; y < cells; y++) {
+    for (let x = 0; x < cells; x++) {
+      const checker = (x + y) % 2 === 0;
+      const base = palette[Math.floor(Math.random() * palette.length)];
+      ctx.fillStyle = checker ? base : '#173a3f';
+      ctx.fillRect(x * cell, y * cell, cell, cell);
+    }
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -38,8 +32,11 @@ function createFloorTexture(baseColor) {
   return texture;
 }
 
+// Same idea for the walls: a tiny canvas of soft color blobs, so tiling
+// and magnification turn it into that mottled, low-res PS1 wall look
+// instead of a sharp repeating pattern.
 function createWallTexture(baseColor) {
-  const size = 256;
+  const size = 32;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -47,14 +44,74 @@ function createWallTexture(baseColor) {
 
   ctx.fillStyle = baseColor;
   ctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < 2500; i++) {
-    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.035})`;
-    ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
+  for (let i = 0; i < 40; i++) {
+    const shade = (Math.random() - 0.5) * 0.5;
+    ctx.fillStyle = shade > 0 ? `rgba(255,255,255,${shade})` : `rgba(0,0,0,${-shade})`;
+    const r = 3 + Math.random() * 6;
+    ctx.beginPath();
+    ctx.arc(Math.random() * size, Math.random() * size, r, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createChalkboardTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size / 2;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#1c2b22';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < 300; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.04})`;
+    ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2);
+  }
+
+  ctx.fillStyle = 'rgba(235,235,225,0.9)';
+  ctx.font = 'italic 64px "Comic Sans MS", cursive';
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.translate(40, canvas.height / 2);
+  ctx.rotate(-0.02);
+  ctx.fillText('Mrs. S...', 0, 0);
+  ctx.restore();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createDoorTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size * 2;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#6b4326';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 6;
+  for (const panelY of [0.06, 0.52]) {
+    ctx.strokeRect(size * 0.14, canvas.height * panelY, size * 0.72, canvas.height * 0.38);
+  }
+  for (let i = 0; i < 300; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.08})`;
+    ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 20 + 4, 1.5);
+  }
+  ctx.fillStyle = '#d8b25a';
+  ctx.beginPath();
+  ctx.arc(size * 0.82, canvas.height * 0.5, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
@@ -172,21 +229,19 @@ function buildWalls(group, wallMat, width, depth, height, y0, rightWallMode) {
     rightWall.rotation.y = -Math.PI / 2;
     group.add(rightWall);
   } else if (rightWallMode === 'windows') {
-    const sillY = y0 + 1.0;
-    const windowH = 1.5;
+    // Small, roughly square windows in a row - three of them, framed by
+    // posts, like a row of classroom windows.
+    const windowCount = 3;
+    const sillY = y0 + 1.15;
+    const windowH = 1.15;
     const lintelY = sillY + windowH;
-    const windowLen = depth * 0.22;
-    const postLen = (depth - windowLen * 2) / 3;
+    const totalWindowLen = depth * 0.6;
+    const windowLen = totalWindowLen / windowCount;
+    const postLen = (depth - totalWindowLen) / (windowCount + 1);
     const wallX = width / 2;
 
     addBox(group, wallMat, WALL_THICKNESS, sillY - y0, depth, wallX, y0 + (sillY - y0) / 2, 0);
     addBox(group, wallMat, WALL_THICKNESS, y0 + height - lintelY, depth, wallX, lintelY + (y0 + height - lintelY) / 2, 0);
-    addBox(group, wallMat, WALL_THICKNESS, windowH, postLen, wallX, sillY + windowH / 2, -depth / 2 + postLen / 2);
-    addBox(
-      group, wallMat, WALL_THICKNESS, windowH, postLen,
-      wallX, sillY + windowH / 2, -depth / 2 + 1.5 * postLen + windowLen
-    );
-    addBox(group, wallMat, WALL_THICKNESS, windowH, postLen, wallX, sillY + windowH / 2, depth / 2 - postLen / 2);
 
     const glassMat = new THREE.MeshPhysicalMaterial({
       color: 0xbfe8ff,
@@ -195,16 +250,51 @@ function buildWalls(group, wallMat, width, depth, height, y0, rightWallMode) {
       roughness: 0.05,
       transmission: 0.6,
     });
-    const window1Z = -depth / 2 + postLen + windowLen / 2;
-    const window2Z = -depth / 2 + 2 * postLen + 1.5 * windowLen;
-    for (const wz of [window1Z, window2Z]) {
-      const pane = new THREE.Mesh(new THREE.PlaneGeometry(windowLen * 0.94, windowH * 0.94), glassMat);
-      pane.position.set(wallX - WALL_THICKNESS / 2 + 0.02, sillY + windowH / 2, wz);
-      pane.rotation.y = -Math.PI / 2;
-      group.add(pane);
+
+    let z = -depth / 2;
+    for (let i = 0; i <= windowCount; i++) {
+      addBox(group, wallMat, WALL_THICKNESS, windowH, postLen, wallX, sillY + windowH / 2, z + postLen / 2);
+      z += postLen;
+      if (i < windowCount) {
+        const pane = new THREE.Mesh(new THREE.PlaneGeometry(windowLen * 0.9, windowH * 0.9), glassMat);
+        pane.position.set(wallX - WALL_THICKNESS / 2 + 0.02, sillY + windowH / 2, z + windowLen / 2);
+        pane.rotation.y = -Math.PI / 2;
+        group.add(pane);
+        z += windowLen;
+      }
     }
   }
   // rightWallMode === 'open': no wall at all - leads out to the yard.
+}
+
+function addDesks(group, width, depth, exclusions) {
+  const topMat = new THREE.MeshStandardMaterial({ color: '#b5651d', roughness: 0.7 });
+  const legMat = new THREE.MeshStandardMaterial({ color: '#2b2b2b', roughness: 0.6 });
+  const topGeo = new THREE.BoxGeometry(0.55, 0.04, 0.42);
+  const legGeo = new THREE.CylinderGeometry(0.03, 0.05, 0.5, 8);
+
+  const cols = 3;
+  const rows = 2;
+  const marginX = width * 0.2;
+  const marginZ = depth * 0.2;
+  const usableW = width - marginX * 2;
+  const usableD = depth - marginZ * 2;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = -width / 2 + marginX + (c + 0.5) * (usableW / cols);
+      const z = -depth / 2 + marginZ + (r + 0.5) * (usableD / rows);
+      const blocked = exclusions.some((ex) => Math.abs(x - ex.x) < ex.r && Math.abs(z - ex.z) < ex.r);
+      if (blocked) continue;
+
+      const top = new THREE.Mesh(topGeo, topMat);
+      top.position.set(x, 0.5, z);
+      group.add(top);
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(x, 0.25, z);
+      group.add(leg);
+    }
+  }
 }
 
 function addCrates(scene, crateTex, count, centerX, centerZ, spread, groundY) {
@@ -245,19 +335,43 @@ export function buildRoom(scene) {
   const upperGroup = new THREE.Group();
   scene.add(upperGroup);
 
-  const floorMat = new THREE.MeshStandardMaterial({ map: createFloorTexture('#2f5c33'), roughness: 0.85 });
+  const floorMat = new THREE.MeshStandardMaterial({ map: createCheckerFloorTexture(), roughness: 0.85 });
   buildFloor(upperGroup, floorMat, width, depth, 0, hole);
 
-  const ceiling = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, depth),
-    new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.95 })
-  );
+  // Flat, unlit black - a PS1-era ceiling that just isn't rendered as
+  // anything but a void above the room.
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), new THREE.MeshBasicMaterial({ color: 0x050505 }));
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = height;
   upperGroup.add(ceiling);
 
-  const wallMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#cfc9bd'), roughness: 0.92 });
+  const wallMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#c9a45c'), roughness: 0.92 });
   buildWalls(upperGroup, wallMat, width, depth, height, 0, 'windows');
+
+  // A chalkboard on the far wall, facing the spawn point.
+  const chalkboard = new THREE.Mesh(
+    new THREE.PlaneGeometry(Math.min(2.4, width * 0.5), 1.1),
+    new THREE.MeshStandardMaterial({ map: createChalkboardTexture(), roughness: 0.8 })
+  );
+  chalkboard.position.set(width * 0.15, 1.7, -depth / 2 + WALL_THICKNESS / 2 + 0.02);
+  upperGroup.add(chalkboard);
+
+  // A closed door on the left wall, near the entrance corner.
+  const door = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.95, 2.05),
+    new THREE.MeshStandardMaterial({ map: createDoorTexture(), roughness: 0.75 })
+  );
+  door.position.set(-width / 2 + WALL_THICKNESS / 2 + 0.02, 1.025, depth / 2 - 1.1);
+  door.rotation.y = Math.PI / 2;
+  upperGroup.add(door);
+
+  // School desks scattered around the room, clear of the hatch, the
+  // spawn point, and the Venom twin's starting spot.
+  addDesks(upperGroup, width, depth, [
+    { x: hole.x, z: hole.z, r: 1.3 },
+    { x: 0, z: depth / 2 - 1.6, r: 1.0 },
+    { x: 0, z: -0.6, r: 1.0 },
+  ]);
 
   // Ground floor, directly below - same footprint, open on the right onto
   // the yard. No ceiling of its own: it's really just walls wrapped around
