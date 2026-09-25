@@ -5,7 +5,7 @@ experience, Venom greets you out loud: "Hello, welcome to my game, I do
 not ask questions but break has started. Go." A symbiote has bonded to
 your arms: they hang as floppy, whip-like black tendrils that follow your
 VR controllers with real verlet-rope physics. You wake up in a retro,
-PS1-style classroom on the second floor of a building - checkered floor,
+PS1-style classroom on the second floor of a good-sized building - checkered floor,
 blotchy low-res walls, a chalkboard (blank - it doesn't say anything),
 school desks - and right in front of you is another symbiote figure with
 the same floppy tendril arms as your own, jagged teeth, and a lolling
@@ -13,8 +13,9 @@ tongue. It doesn't chase you; it just stands there and turns to mirror
 whatever direction you're currently facing. Three small windows on the
 side wall look down onto a glitched-out playground below - a bounded,
 cracked-ground field under a radiating pastel rainbow sky, with a
-wall-mounted symbiote face looming at the far end and Carnage lurking
-near a few piles of crates. A sloped tunnel through the classroom's side
+wall-mounted symbiote face looming at the far end and a purple-and-orange
+blotched Carnage lurking near a scatter of crates spread across the
+platform. A sloped tunnel through the classroom's side
 wall is the way downstairs, and you can jump - or hold to fly, tumbling
 ragdoll-loose - straight up onto the roof, where a spiked mace is waiting
 to be picked up. Swing it hard at Carnage or the crates and they'll knock
@@ -66,13 +67,14 @@ Browser, and you can iterate by just refreshing the page.
   whole rig gently tumbling on a bounded pitch/roll wobble while airborne
   (a "ragdolled" feel without ever spinning the camera itself, which would
   be nauseating in VR). Let go and gravity takes back over.
-- **A retro PS1-style classroom** — a small room (mildly randomized
-  dimensions each load) styled after low-poly, low-res 32-bit-era horror
-  games: a blue/green checkered floor, blotchy low-resolution walls, a flat
-  black ceiling, a blank chalkboard, and school desks scattered around
-  (clear of the tunnel entrance and the spawn point). Three small square
-  windows are cut into the side wall, looking down onto an exterior
-  playground a full story below.
+- **A retro PS1-style classroom** — a sizeable room (mildly randomized
+  dimensions each load, roomier than early builds of this scene) styled
+  after low-poly, low-res 32-bit-era horror games: a blue/green checkered
+  floor, blotchy low-resolution walls, a flat black ceiling, a blank
+  chalkboard, and school desks scattered around (clear of the tunnel
+  entrance and the spawn point). Three small square windows are cut into
+  the side wall, looking down onto an exterior playground a full story
+  below.
 - **A tunnel downstairs, a walkable roof, and real gravity** — the way
   down is a sloped, enclosed tunnel through an opening in the classroom's
   left wall, descending to the ground floor outside; walk down it (or off
@@ -98,9 +100,9 @@ Browser, and you can iterate by just refreshing the page.
 - **A dreamcore playground** — outside the windows and down the tunnel: a
   bounded platform of cracked, hazy green ground (wider and considerably
   longer than the building itself, but still not an endless field) under a
-  radiating pastel-rainbow sky (a conic-gradient skydome), a few piles of
-  wooden crates - one leaning against another rather than scattered
-  individually, each with its own gravity and knockback physics - a
+  radiating pastel-rainbow sky (a conic-gradient skydome), a handful of
+  freestanding wooden crates scattered well apart from each other rather
+  than piled together, each with its own gravity and knockback physics - a
   wall-mounted symbiote face looming at the far end, turned to look back
   toward the school building (every dimension randomized per load), and
   glitched walls around the ground floor - a corrupted, colour-banded
@@ -112,9 +114,10 @@ Browser, and you can iterate by just refreshing the page.
   you - it stands its ground and continuously turns to face whatever
   direction you're currently facing, like an eerie mirror.
 - **Carnage lurks near the crates** — the same kind of figure as your
-  symbiote twin, reskinned red with black muscle-crack veins instead of
-  white. Unlike Venom, it doesn't mirror you - it just stands its ground
-  near the crate piles until a mace swing sends it reeling, tumbling and
+  symbiote twin, but with an orange-and-gold hide mottled in big,
+  irregular purple blotches instead of Venom's black-and-white crack
+  pattern. Unlike Venom, it doesn't mirror you - it just stands its ground
+  near the crates until a mace swing sends it reeling, tumbling and
   spinning under the same knockback physics as a hit crate. Walk up close
   and an in-VR prompt invites you to talk to him (trigger, or `Q`/`E` on
   desktop) - he explains, out loud in his own rougher voice, what the
@@ -198,15 +201,16 @@ the Quest Browser — no local dev server needed at that point.
   (arm thickness taper).
 - `Sludge.js` constants: `HEIGHT_DROP` (how short the sludge form is) and
   `SLUDGE_MOVE_SPEED`.
-- `Room.js`: the random width/depth range, the window/desk layout inside
+- `Room.js`: the random width/depth range (and `height`/`groundHeight`) for
+  the building's overall size, the window/desk layout inside
   `buildWalls(...)`/`addDesks(...)`, `FLOOR_DROP` (how far below the ground
   floor sits), `TUNNEL_WIDTH`/`TUNNEL_HEIGHT`/`TUNNEL_RUN` (the side
   tunnel's shape and slope), `yardWidth`/`yardLength` (the playground
-  platform's footprint), the crate-stack count/spread in
-  `addCrateStacks(...)`, the symbiote wall-face's size/placement and the
-  `lookAt` point it turns toward in `addSymbioteFace`, Carnage's spot next
-  to the crates (`carnagePosition`), and the skydome's center/radius in
-  the `addSkydome(...)` call.
+  platform's footprint), the crate count/spread in `addCrates(...)`, the
+  symbiote wall-face's size/placement and the `lookAt` point it turns
+  toward in `addSymbioteFace`, Carnage's spot next to the crates
+  (`carnagePosition`), and the skydome's center/radius in the
+  `addSkydome(...)` call.
 - `main.js` jump/fly constants: `JUMP_SPEED` (tap-jump impulse),
   `FLY_SPEED` (climb rate once flying), `FLY_HOLD_THRESHOLD` (how long the
   **A** button must be held before a jump turns into flight), and
@@ -220,6 +224,9 @@ the Quest Browser — no local dev server needed at that point.
   `ORB_HOME_MAX_SPEED`/`ORB_COLLECT_RADIUS` control how long a rainbow
   orb hops before homing in on you, how fast it accelerates and tops out,
   and how close it needs to get before it's collected.
+- `venomTexture.js`'s `createCarnageTexture()`: the base gradient colours,
+  `blobCount`/blob radius (how many purple splotches and how big), and the
+  HSL range they're drawn in.
 - `VenomVoice.js`: the `GREETING`/`CARNAGE_DOOR_LINE` text, the `pitch`/
   `rate` passed for each (how deep/rough each character sounds), and
   `MALE_VOICE_HINTS` (the substrings used to pick a male-sounding voice

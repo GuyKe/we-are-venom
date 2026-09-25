@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { createVenomMaterial } from './venomTexture.js';
 
 const WALL_THICKNESS = 0.25;
-const FLOOR_DROP = 3.6; // meters the ground floor sits below the upper room
+const FLOOR_DROP = 5.0; // meters the ground floor sits below the upper room
 const TUNNEL_WIDTH = 1.7;
 const TUNNEL_HEIGHT = 2.2;
-const TUNNEL_RUN = 6.5; // horizontal distance the tunnel covers as it descends
+const TUNNEL_RUN = 8.5; // horizontal distance the tunnel covers as it descends
 
 // A deliberately tiny, blurry-when-stretched checkerboard - the PS1-era
 // look of a floor texture that's a handful of pixels magnified way up,
@@ -359,46 +359,22 @@ function addDesks(group, width, depth, exclusions) {
   }
 }
 
-// Small piles of crates - a base crate with a second one leaning/tilted
-// against or on top of it, occasionally with a third alongside - rather
-// than a field of individually scattered boxes. Returns every individual
-// crate mesh so the caller can give each one its own physics.
-function addCrateStacks(scene, crateTex, stackCount, centerX, centerZ, spread, groundY) {
+// Individual crates scattered well apart from each other - freestanding
+// boxes rather than leaning piles. Returns every crate mesh so the caller
+// can give each one its own physics.
+function addCrates(scene, crateTex, count, centerX, centerZ, spread, groundY) {
   const material = new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.85 });
   const crates = [];
 
-  for (let i = 0; i < stackCount; i++) {
+  for (let i = 0; i < count; i++) {
     const cx = centerX + (Math.random() - 0.5) * spread;
     const cz = centerZ + (Math.random() - 0.5) * spread;
-
-    const baseSize = 0.6 + Math.random() * 0.5;
-    const base = new THREE.Mesh(new THREE.BoxGeometry(baseSize, baseSize, baseSize), material);
-    base.position.set(cx, groundY + baseSize / 2, cz);
-    base.rotation.y = Math.random() * Math.PI * 2;
-    scene.add(base);
-    crates.push(base);
-
-    const topSize = 0.5 + Math.random() * 0.4;
-    const top = new THREE.Mesh(new THREE.BoxGeometry(topSize, topSize, topSize), material);
-    const lean = (Math.random() - 0.5) * 0.9;
-    top.position.set(
-      cx + Math.sin(lean) * topSize * 0.4,
-      groundY + baseSize + Math.cos(lean) * topSize * 0.45,
-      cz + (Math.random() - 0.5) * 0.2
-    );
-    top.rotation.z = lean;
-    top.rotation.y = Math.random() * Math.PI * 2;
-    scene.add(top);
-    crates.push(top);
-
-    if (Math.random() < 0.5) {
-      const extraSize = 0.4 + Math.random() * 0.3;
-      const extra = new THREE.Mesh(new THREE.BoxGeometry(extraSize, extraSize, extraSize), material);
-      extra.position.set(cx + (Math.random() - 0.5) * 0.7, groundY + extraSize / 2, cz + (Math.random() - 0.5) * 0.7);
-      extra.rotation.y = Math.random() * Math.PI * 2;
-      scene.add(extra);
-      crates.push(extra);
-    }
+    const size = 0.6 + Math.random() * 0.6;
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), material);
+    crate.position.set(cx, groundY + size / 2, cz);
+    crate.rotation.y = Math.random() * Math.PI * 2;
+    scene.add(crate);
+    crates.push(crate);
   }
 
   return crates;
@@ -601,10 +577,10 @@ export function createRainbowOrb() {
  * sky.
  */
 export function buildRoom(scene) {
-  const width = 6 + Math.random() * 2;
-  const depth = 6 + Math.random() * 2;
-  const height = 3.4;
-  const groundHeight = 3.0 + Math.random() * 0.6;
+  const width = 9 + Math.random() * 3;
+  const depth = 9 + Math.random() * 3;
+  const height = 4.2;
+  const groundHeight = 3.8 + Math.random() * 0.7;
   const groundY = -FLOOR_DROP;
 
   scene.background = new THREE.Color(0xf0e6f5);
@@ -712,7 +688,7 @@ export function buildRoom(scene) {
   addSkydome(scene, new THREE.Vector3(wallX + yardLength / 2, groundY + 5, 0), 150);
 
   const crateTex = createCrateTexture();
-  const crates = addCrateStacks(scene, crateTex, 3, wallX + 6, 0, 5, groundY);
+  const crates = addCrates(scene, crateTex, 3, wallX + 8, 0, 14, groundY);
 
   // Carnage stands watch near the crates, out at the platform's edge.
   const carnagePosition = new THREE.Vector3(wallX + 6, groundY, -4.5);

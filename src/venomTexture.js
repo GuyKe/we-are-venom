@@ -121,29 +121,79 @@ export function createVenomMaterial() {
   });
 }
 
-/** Same glossy symbiote material, recoloured red for Carnage - a deep red
- * clearcoat body with black muscle-crack veins instead of white ones. */
+/**
+ * An orange/gold hide mottled with big, irregular purple blotches -
+ * Carnage's look, closer to a giraffe or dalmatian pattern than the thin
+ * branching "muscle crack" veins Venom's texture uses. Each blotch is
+ * several overlapping jittered circles rather than one clean circle, so
+ * the edges read as organic rather than perfectly round.
+ */
+function createCarnageTexture(size = 512) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const base = ctx.createRadialGradient(size * 0.5, size * 0.4, size * 0.05, size * 0.5, size * 0.5, size * 0.75);
+  base.addColorStop(0, '#e6963a');
+  base.addColorStop(0.6, '#d9821f');
+  base.addColorStop(1, '#b8650f');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, size, size);
+
+  const blobCount = 22;
+  for (let i = 0; i < blobCount; i++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    const r = size * (0.05 + Math.random() * 0.07);
+    const lightness = 22 + Math.random() * 16;
+    ctx.fillStyle = `hsl(${275 + Math.random() * 25}, 65%, ${lightness}%)`;
+    for (let j = 0; j < 5; j++) {
+      const ox = (Math.random() - 0.5) * r * 0.7;
+      const oy = (Math.random() - 0.5) * r * 0.7;
+      ctx.beginPath();
+      ctx.arc(cx + ox, cy + oy, r * (0.55 + Math.random() * 0.5), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Fine speckle noise for a wet, organic sheen.
+  const speckleCount = Math.floor(size * size * 0.015);
+  for (let i = 0; i < speckleCount; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.fillStyle = `rgba(255,220,180,${Math.random() * 0.08})`;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.random() * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/** Carnage's glossy orange-and-purple blotched hide. */
 export function createCarnageMaterial() {
-  const map = createVenomTexture({
-    baseColorStops: ['#8c1414', '#5c0a0a', '#1a0303'],
-    crackRGB: '10,10,10',
-    speckleRGB: '0,0,0',
-  });
-  map.repeat.set(1, 3);
+  const map = createCarnageTexture();
+  map.repeat.set(1, 2);
 
   return new THREE.MeshPhysicalMaterial({
-    color: 0x2a0505,
+    color: 0xffffff,
     map,
-    roughness: 0.2,
-    metalness: 0.1,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.08,
-    emissive: new THREE.Color(0xff2a2a),
+    roughness: 0.3,
+    metalness: 0.05,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.12,
+    emissive: new THREE.Color(0x6a2fa8),
     emissiveMap: map,
-    emissiveIntensity: 0.12,
-    sheen: 1.0,
-    sheenColor: new THREE.Color(0x551111),
-    sheenRoughness: 0.5,
+    emissiveIntensity: 0.08,
+    sheen: 0.6,
+    sheenColor: new THREE.Color(0xffb066),
+    sheenRoughness: 0.6,
   });
 }
 
