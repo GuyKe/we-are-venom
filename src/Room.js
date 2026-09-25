@@ -74,15 +74,6 @@ function createChalkboardTexture() {
     ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2);
   }
 
-  ctx.fillStyle = 'rgba(235,235,225,0.9)';
-  ctx.font = 'italic 64px "Comic Sans MS", cursive';
-  ctx.textBaseline = 'middle';
-  ctx.save();
-  ctx.translate(40, canvas.height / 2);
-  ctx.rotate(-0.02);
-  ctx.fillText('Mrs. S...', 0, 0);
-  ctx.restore();
-
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
@@ -116,32 +107,22 @@ function createDoorTexture() {
   return texture;
 }
 
-function createYardTexture() {
-  const size = 512;
+// A tiny, blurry-when-stretched green ground texture - smeared streaky
+// grass rather than crisp blades, matching a hazy dreamcore playground
+// field instead of a modern lawn.
+function createGlitchGrassTexture() {
+  const size = 48;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#6d6d70';
+  ctx.fillStyle = '#4a7a1f';
   ctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < 4000; i++) {
-    const g = 55 + Math.random() * 40;
-    ctx.fillStyle = `rgba(${g},${g},${g * 1.02},0.5)`;
-    ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
-  }
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.lineWidth = 2;
-  for (let i = 0; i <= 4; i++) {
-    const p = (i / 4) * size;
-    ctx.beginPath();
-    ctx.moveTo(p, 0);
-    ctx.lineTo(p, size);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, p);
-    ctx.lineTo(size, p);
-    ctx.stroke();
+  for (let i = 0; i < 220; i++) {
+    const g = 90 + Math.random() * 90;
+    ctx.fillStyle = `rgba(${g * 0.55}, ${g}, ${g * 0.3}, 0.6)`;
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random() * 3, 1 + Math.random() * 5);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -149,6 +130,90 @@ function createYardTexture() {
   texture.wrapT = THREE.RepeatWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+// Digital-corruption "glitched" walls: banded colour-channel offsets and
+// blocky static noise instead of a clean material.
+function createGlitchWallTexture() {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#12140f';
+  ctx.fillRect(0, 0, size, size);
+
+  // Horizontal bands, each shifted and tinted like a corrupted scanline.
+  const bandCount = 14;
+  for (let i = 0; i < bandCount; i++) {
+    const y = (i / bandCount) * size;
+    const h = size / bandCount;
+    const hue = Math.floor(Math.random() * 360);
+    const glitchy = Math.random() < 0.4;
+    ctx.fillStyle = glitchy ? `hsl(${hue}, 90%, 55%)` : `hsl(${hue}, 25%, ${12 + Math.random() * 10}%)`;
+    const xOffset = glitchy ? (Math.random() - 0.5) * size * 0.6 : 0;
+    ctx.fillRect(xOffset, y, size, h);
+  }
+
+  // Blocky static noise in classic glitch colours.
+  const glitchColors = ['#ff2fd0', '#2fe0ff', '#f7ff2f', '#ffffff'];
+  for (let i = 0; i < 30; i++) {
+    ctx.fillStyle = glitchColors[Math.floor(Math.random() * glitchColors.length)];
+    ctx.globalAlpha = 0.5 + Math.random() * 0.4;
+    const w = 2 + Math.random() * 10;
+    const h = 1 + Math.random() * 3;
+    ctx.fillRect(Math.random() * size, Math.random() * size, w, h);
+  }
+  ctx.globalAlpha = 1;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// A radiating rainbow "sunburst" for the sky, built with a conic
+// gradient - a flat, poster-ish rainbow fan rather than a physical sky.
+function createRainbowSkyTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size / 2;
+  const ctx = canvas.getContext('2d');
+
+  const cx = size / 2;
+  const cy = canvas.height * 0.95;
+  const gradient = ctx.createConicGradient(-Math.PI / 2 - 0.9, cx, cy);
+  const hues = [0, 35, 60, 130, 200, 260, 300, 360];
+  hues.forEach((h, i) => gradient.addColorStop(i / (hues.length - 1), `hsl(${h}, 85%, 68%)`));
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, canvas.height);
+
+  // Soft pastel wash over the top so it reads as hazy rather than a crisp print.
+  const wash = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  wash.addColorStop(0, 'rgba(255,255,255,0.35)');
+  wash.addColorStop(1, 'rgba(255,255,255,0.05)');
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, size, canvas.height);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function addSkydome(scene, center, radius) {
+  const geometry = new THREE.SphereGeometry(radius, 24, 16);
+  const material = new THREE.MeshBasicMaterial({
+    map: createRainbowSkyTexture(),
+    side: THREE.BackSide,
+    fog: false,
+  });
+  const dome = new THREE.Mesh(geometry, material);
+  dome.position.copy(center);
+  scene.add(dome);
+  return dome;
 }
 
 function createCrateTexture() {
@@ -316,7 +381,8 @@ function addCrates(scene, crateTex, count, centerX, centerZ, spread, groundY) {
  * Builds the whole building: an upper room (mildly randomized dimensions)
  * with windows in its right wall and a floor hatch you can drop through,
  * and a ground floor directly below sharing the same footprint, open on
- * its right side onto an exterior crate yard where Carnage lurks.
+ * its right side onto an exterior playground under a psychedelic rainbow
+ * sky.
  */
 export function buildRoom(scene) {
   const width = 6 + Math.random() * 2;
@@ -325,8 +391,8 @@ export function buildRoom(scene) {
   const groundHeight = 3.0 + Math.random() * 0.6;
   const groundY = -FLOOR_DROP;
 
-  scene.background = new THREE.Color(0x1c2733);
-  scene.fog = new THREE.FogExp2(0x1c2733, 0.018);
+  scene.background = new THREE.Color(0xf0e6f5);
+  scene.fog = new THREE.FogExp2(0xf0e6f5, 0.01);
 
   // Floor hatch: off toward the left wall, clear of the spawn point and
   // the Venom twin, so falling through it is deliberate, not accidental.
@@ -373,26 +439,30 @@ export function buildRoom(scene) {
     { x: 0, z: -0.6, r: 1.0 },
   ]);
 
-  // Ground floor, directly below - same footprint, open on the right onto
-  // the yard. No ceiling of its own: it's really just walls wrapped around
-  // part of the same ground level the yard sits on.
+  // Ground floor ("the playground"), directly below - same footprint,
+  // open on the right onto the exterior. No ceiling of its own: it's
+  // really just walls wrapped around part of the same ground level the
+  // playground sits on. Glitched walls - a corrupted-looking texture
+  // instead of a clean material.
   const groundGroup = new THREE.Group();
   scene.add(groundGroup);
-  const groundWallMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#5a5f66'), roughness: 0.9 });
+  const groundWallMat = new THREE.MeshStandardMaterial({ map: createGlitchWallTexture(), roughness: 0.9 });
   buildWalls(groundGroup, groundWallMat, width, depth, groundHeight, groundY, 'open');
 
-  // Exterior/ground-level yard - large enough to run underneath the whole
-  // building footprint as well as out into the open crate yard beyond it.
+  // Exterior playground - large enough to run underneath the whole
+  // building footprint as well as out into the open field beyond it,
+  // under a radiating rainbow sky.
   const wallX = width / 2;
-  const yardTex = createYardTexture();
-  yardTex.repeat.set(48, 48);
+  const grassTex = createGlitchGrassTexture();
+  grassTex.repeat.set(48, 48);
   const yard = new THREE.Mesh(
     new THREE.PlaneGeometry(220, 220),
-    new THREE.MeshStandardMaterial({ map: yardTex, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95 })
   );
   yard.rotation.x = -Math.PI / 2;
   yard.position.set(wallX, groundY, 0);
   scene.add(yard);
+  addSkydome(scene, new THREE.Vector3(wallX + 15, groundY + 5, 0), 150);
 
   const crateTex = createCrateTexture();
   addCrates(scene, crateTex, 14, wallX + 10, 1, 16, groundY);
@@ -409,12 +479,12 @@ export function buildRoom(scene) {
   const fill = new THREE.PointLight(0xfff0dd, 0.5, 12, 2);
   fill.position.set(0, height - 0.3, depth / 2 - 1.5);
   scene.add(fill);
-  const yardLight = new THREE.PointLight(0xff5540, 2.5, 30, 2);
-  yardLight.position.set(wallX + 10, groundY + 4, 1);
-  scene.add(yardLight);
   const groundFill = new THREE.PointLight(0xdce8ff, 0.8, 14, 2);
   groundFill.position.set(0, groundY + groundHeight - 0.3, 0);
   scene.add(groundFill);
+  const playgroundGlow = new THREE.PointLight(0xffe0f5, 1.6, 30, 2);
+  playgroundGlow.position.set(wallX + 15, groundY + 6, 0);
+  scene.add(playgroundGlow);
 
   return {
     width,
@@ -424,6 +494,5 @@ export function buildRoom(scene) {
     hole,
     spawnPosition: new THREE.Vector3(0, 0, depth / 2 - 1.6),
     npcPosition: new THREE.Vector3(0, 0, -0.6),
-    carnagePosition: new THREE.Vector3(wallX + 11, groundY, 2),
   };
 }

@@ -2,8 +2,6 @@ import * as THREE from 'three';
 import { VenomArm } from './VenomArm.js';
 
 const IDLE_SWAY_RADIUS = 0.12;
-const FOLLOW_SPEED = 1.9; // meters per second
-const FOLLOW_STOP_DISTANCE = 1.1; // meters - how close it closes in before halting
 
 const LEG_RADIUS = 0.1;
 const LEG_LENGTH = 0.62;
@@ -23,9 +21,9 @@ const HEAD_Y = TORSO_TOP + HEAD_RADIUS;
  * simple glossy body topped with a pair of iconic wide white eyes and a
  * jagged-toothed mouth, with two real VenomArm floppy tendrils for arms -
  * "floppy like you" - idly swaying on their own rather than being
- * controller-driven. Optionally walks toward and faces a followTarget
- * each frame (see update()), snapping to whatever floor a FloorMap says
- * is beneath it - so it can chase the player right through a floor hatch.
+ * controller-driven. It doesn't walk toward the player - it just stands
+ * its ground and turns to always face the same direction the player is
+ * currently facing, like an eerie mirror (see update()).
  */
 export class VenomTwin {
   constructor(scene, material, position) {
@@ -123,25 +121,17 @@ export class VenomTwin {
 
   /**
    * @param {number} dt
-   * @param {THREE.Vector3} [followTarget] world position to walk toward and face
+   * @param {number} [faceYaw] the player's current facing angle (radians,
+   *        matching THREE's rotation.y convention) - the twin mirrors it
+   *        exactly, in place, rather than walking toward the player
    * @param {import('./Gravity.js').Faller} [faller] keeps it grounded on
-   *        whatever floor is beneath it (falls through a hatch it walks over)
+   *        whatever floor is beneath it
    */
-  update(dt, followTarget = null, faller = null) {
+  update(dt, faceYaw = null, faller = null) {
     this.elapsed += dt;
 
-    if (followTarget) {
-      const dx = followTarget.x - this.group.position.x;
-      const dz = followTarget.z - this.group.position.z;
-      const dist = Math.hypot(dx, dz);
-      if (dist > FOLLOW_STOP_DISTANCE) {
-        const step = Math.min(dist - FOLLOW_STOP_DISTANCE, FOLLOW_SPEED * dt);
-        this.group.position.x += (dx / dist) * step;
-        this.group.position.z += (dz / dist) * step;
-      }
-      if (dist > 0.01) {
-        this.group.rotation.y = Math.atan2(dx, dz);
-      }
+    if (faceYaw !== null) {
+      this.group.rotation.y = faceYaw;
     }
 
     if (faller) faller.update(this.group.position, dt);

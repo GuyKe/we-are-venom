@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildRoom } from './Room.js';
-import { createVenomMaterial, createCarnageMaterial } from './venomTexture.js';
+import { createVenomMaterial } from './venomTexture.js';
 import { VenomArm } from './VenomArm.js';
 import { VenomTwin } from './VenomTwin.js';
 import { Locomotion } from './Locomotion.js';
@@ -12,7 +12,7 @@ import { FloorMap, Faller } from './Gravity.js';
 const intro = document.getElementById('intro');
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 100);
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 400);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -24,7 +24,7 @@ renderer.xr.enabled = true;
 document.getElementById('app').appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
-const { width, depth, groundY, hole, spawnPosition, npcPosition, carnagePosition } = buildRoom(scene);
+const { width, depth, groundY, hole, spawnPosition, npcPosition } = buildRoom(scene);
 
 // Floor lookup for gravity: the upper room's floor (with its hatch hole)
 // sits above everything else, which all shares the ground-floor height -
@@ -69,10 +69,6 @@ const armRight = new VenomArm({ material: venomMaterial, side: 'right' });
 scene.add(armLeft.mesh, armLeft.tipAnchor, armLeft.spikesGroup, armRight.mesh, armRight.tipAnchor, armRight.spikesGroup);
 
 const venomTwin = new VenomTwin(scene, venomMaterial, npcPosition);
-
-// Carnage, lurking in the crate yard one story down outside the windows.
-const carnageMaterial = createCarnageMaterial();
-const carnageTwin = new VenomTwin(scene, carnageMaterial, carnagePosition);
 
 // Raw controller + grip spaces give us tracked pose data; we don't attach
 // any visible controller model since the symbiote tendrils replace the hands.
@@ -135,6 +131,7 @@ const tmpTarget = new THREE.Vector3();
 const tmpQuat = new THREE.Quaternion();
 const tmpHeadPos = new THREE.Vector3();
 const tmpHeadQuat = new THREE.Quaternion();
+const tmpEuler = new THREE.Euler();
 
 function computeShoulderAnchor(offset, out) {
   camera.getWorldPosition(tmpHeadPos);
@@ -237,8 +234,12 @@ renderer.setAnimationLoop(() => {
 
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);
-  venomTwin.update(dt, rig.position, venomFaller);
-  carnageTwin.update(dt);
+
+  // Venom doesn't chase the player - it just stands there mirroring
+  // whatever direction the player is currently facing.
+  camera.getWorldQuaternion(tmpHeadQuat);
+  tmpEuler.setFromQuaternion(tmpHeadQuat, 'YXZ');
+  venomTwin.update(dt, tmpEuler.y, venomFaller);
 
   renderer.render(scene, camera);
 });

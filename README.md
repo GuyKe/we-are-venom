@@ -4,12 +4,14 @@ A Meta Quest WebXR scene built with Three.js. A symbiote has bonded to your
 arms: they hang as floppy, whip-like black tendrils that follow your VR
 controllers with real verlet-rope physics. You wake up in a retro,
 PS1-style classroom on the second floor of a building - checkered floor,
-blotchy low-res walls, a chalkboard, school desks, a door - and right in
-front of you is another symbiote figure with the same floppy tendril arms
-as your own, jagged teeth, and a lolling tongue, and it never stops
-following you. Three small windows on the side wall look down onto a
-crate-filled yard below, where Carnage is lurking, and a hatch in the
-floor drops you straight down to the ground floor if you walk into it.
+blotchy low-res walls, a chalkboard (blank - it doesn't say anything),
+school desks, a door - and right in front of you is another symbiote
+figure with the same floppy tendril arms as your own, jagged teeth, and a
+lolling tongue. It doesn't chase you; it just stands there and turns to
+mirror whatever direction you're currently facing. Three small windows on
+the side wall look down onto a glitched-out playground below - a green,
+hazy field under a radiating pastel rainbow sky - and a hatch in the floor
+drops you straight down to it if you walk into it.
 
 ## Why WebXR
 
@@ -41,27 +43,26 @@ Browser, and you can iterate by just refreshing the page.
 - **A retro PS1-style classroom** — a small room (mildly randomized
   dimensions each load) styled after low-poly, low-res 32-bit-era horror
   games: a blue/green checkered floor, blotchy low-resolution walls, a flat
-  black ceiling, a chalkboard with "Mrs. S..." chalked on it, a closed
-  door, and school desks scattered around (clear of the hatch and the
-  spawn point). Three small square windows are cut into the side wall,
-  looking down onto an exterior yard a full story below.
+  black ceiling, a blank chalkboard, a closed door, and school desks
+  scattered around (clear of the hatch and the spawn point). Three small
+  square windows are cut into the side wall, looking down onto an
+  exterior playground a full story below.
 - **A hatch to the ground floor, and real gravity** — a rectangular hole is
   cut into the room's floor; step into it (or off any other edge) and you
   actually fall to whatever's below instead of floating in place, landing
-  on the ground floor one story down. A lightweight floor-region lookup
+  on the playground one story down. A lightweight floor-region lookup
   (`Gravity.js`) stands in for a physics engine: it just asks "what's the
   highest floor under this X/Z?" and falls you toward it.
-- **Your symbiote twin follows you** — a standing Venom figure shares the
+- **A dreamcore playground** — outside the windows and down the hatch: a
+  hazy green field under a radiating pastel-rainbow sky (a conic-gradient
+  skydome), scattered wooden crates, and glitched walls around the ground
+  floor - a corrupted, colour-banded texture instead of a clean material.
+- **Your symbiote twin mirrors you** — a standing Venom figure shares the
   room with you, built from the same glossy black material and the same
   floppy tendril-arm system as the player: wide white eyes, a gaping
-  jagged-toothed mouth, and a long lolling tongue. It continuously walks
-  toward you and turns to face you as you move, using the same gravity
-  lookup - so it'll chase you right through the floor hatch and down to
-  the ground floor.
-- **Carnage in the yard** — outside the windows, one story down, sits a
-  crate-scattered yard lit by a dim red glow - and lurking among the crates
-  is a Carnage twin of the same figure (stationary), reskinned in a glossy
-  blood-red material with black cracks instead of Venom's black-and-white.
+  jagged-toothed mouth, and a long lolling tongue. It doesn't walk toward
+  you - it stands its ground and continuously turns to face whatever
+  direction you're currently facing, like an eerie mirror.
 - **Desktop preview** — no headset handy? Click the intro screen to look
   around the room with mouse-orbit; the tendrils animate on simulated hand
   targets so you can sanity-check the scene on a monitor.
@@ -83,10 +84,10 @@ index.html          Entry HTML + intro overlay
 src/main.js          Scene setup, XR rig wiring, render loop
 src/VenomArm.js       Verlet tendril simulation + tapered tube mesh + claws
 src/venomTexture.js   Procedural black/white "symbiote crack" canvas texture
-src/VenomTwin.js      Standing/following Venom or Carnage figure (body + face + a pair of VenomArms)
+src/VenomTwin.js      Standing, direction-mirroring Venom figure (body + face + a pair of VenomArms)
 src/Sludge.js         Short/medium-speed sludge form toggle
 src/Gravity.js        Floor-region lookup + fall-to-the-floor-below gravity
-src/Room.js           Second floor (with a floor hatch) + ground floor + yard + crates
+src/Room.js           Second floor (with a floor hatch) + ground floor + rainbow-sky playground
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
 ```
 
@@ -129,9 +130,6 @@ the Quest Browser — no local dev server needed at that point.
   `SLUDGE_MOVE_SPEED`.
 - `Room.js`: the random width/depth range, the window/desk layout inside
   `buildWalls(...)`/`addDesks(...)`, `FLOOR_DROP` (how far below the ground
-  floor sits), the `hole` object (hatch position/size), and the crate
-  count/spread in `addCrates(...)`.
-- `venomTexture.js`: `createCarnageMaterial()`'s color options control
-  Carnage's red/black skin tone.
-- `VenomTwin.js`: `FOLLOW_SPEED` and `FOLLOW_STOP_DISTANCE` control how fast
-  it closes in and how close it gets before stopping.
+  floor sits), the `hole` object (hatch position/size), the crate
+  count/spread in `addCrates(...)`, and the skydome's center/radius in the
+  `addSkydome(...)` call.

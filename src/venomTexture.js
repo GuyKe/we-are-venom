@@ -121,27 +121,3 @@ export function createVenomMaterial() {
   });
 }
 
-/** Carnage's skin: a glossy blood-red base with branching black cracks. */
-export function createCarnageMaterial() {
-  const map = createVenomTexture({
-    baseColorStops: ['#7a0f14', '#3f0509', '#180203'],
-    crackRGB: '10,4,4',
-    speckleRGB: '20,0,0',
-  });
-  map.repeat.set(1, 3);
-
-  return new THREE.MeshPhysicalMaterial({
-    color: 0x4a0407,
-    map,
-    roughness: 0.2,
-    metalness: 0.1,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.08,
-    emissive: new THREE.Color(0xff2a1a),
-    emissiveMap: map,
-    emissiveIntensity: 0.12,
-    sheen: 1.0,
-    sheenColor: new THREE.Color(0x550a0a),
-    sheenRoughness: 0.5,
-  });
-}
