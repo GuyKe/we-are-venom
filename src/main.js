@@ -24,30 +24,21 @@ renderer.xr.enabled = true;
 document.getElementById('app').appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
-const { width, depth, groundY, hole, spawnPosition, npcPosition } = buildRoom(scene);
+const { width, depth, height, groundY, tunnelRegion, mace, spawnPosition, npcPosition } = buildRoom(scene);
 
-// Floor lookup for gravity: the upper room's floor (with its hatch hole)
-// sits above everything else, which all shares the ground-floor height -
-// stepping into the hatch (or off any edge) drops you to the ground floor.
+// Floor lookup for gravity: the upper room's floor and its roof both sit
+// above the ground floor, which everything else shares - walking off any
+// edge (or down the side tunnel) drops you to whatever's below. `maxY`
+// keeps a floor above you (the roof, before you've flown up to it) from
+// being mistaken for solid ground under your feet - see FloorMap.
 const floorMap = new FloorMap();
-floorMap.addRegion({
-  minX: -width / 2,
-  maxX: width / 2,
-  minZ: -depth / 2,
-  maxZ: depth / 2,
-  y: 0,
-  holes: [
-    {
-      minX: hole.x - hole.w / 2,
-      maxX: hole.x + hole.w / 2,
-      minZ: hole.z - hole.d / 2,
-      maxZ: hole.z + hole.d / 2,
-    },
-  ],
-});
+floorMap.addRegion({ minX: -width / 2, maxX: width / 2, minZ: -depth / 2, maxZ: depth / 2, y: 0 });
+floorMap.addRegion({ minX: -width / 2, maxX: width / 2, minZ: -depth / 2, maxZ: depth / 2, y: height });
+floorMap.addRegion(tunnelRegion);
 floorMap.addRegion({ minX: -Infinity, maxX: Infinity, minZ: -Infinity, maxZ: Infinity, y: groundY });
 const playerFaller = new Faller(floorMap);
 const venomFaller = new Faller(floorMap);
+const maceFaller = new Faller(floorMap);
 
 // Player rig ("dolly"): move this to move the player around the room.
 const rig = new THREE.Group();
@@ -216,7 +207,8 @@ let jumpHeldTime = 0;
 let flying = false;
 
 function isGrounded() {
-  return Math.abs(rig.position.y - floorMap.getFloorHeightAt(rig.position.x, rig.position.z)) < 0.02;
+  const floorY = floorMap.getFloorHeightAt(rig.position.x, rig.position.z, rig.position.y);
+  return Math.abs(rig.position.y - floorY) < 0.02;
 }
 
 function startJumpPress() {
@@ -249,9 +241,55 @@ function checkJumpButton() {
   }
 }
 
+// Squeezing either controller's trigger (xr-standard button index 0) near
+// the mace picks it up; it's simply reparented onto that hand's grip
+// (Object3D.attach preserves its world transform, so it doesn't jump), and
+// letting go of the trigger drops it back into the scene under gravity.
+const PICKUP_RADIUS = 0.35;
+let maceHeldBy = null;
+const tmpHandPos = new THREE.Vector3();
+const tmpMacePos = new THREE.Vector3();
+
+function handNodeFor(side, inXR) {
+  return (inXR && findGripBySide(side)) || desktopTargets[side];
+}
+
+function tryPickupMace(side, inXR) {
+  if (maceHeldBy) return;
+  const handNode = handNodeFor(side, inXR);
+  handNode.getWorldPosition(tmpHandPos);
+  mace.getWorldPosition(tmpMacePos);
+  if (tmpHandPos.distanceTo(tmpMacePos) > PICKUP_RADIUS) return;
+  handNode.attach(mace);
+  maceHeldBy = side;
+}
+
+function dropMace() {
+  if (!maceHeldBy) return;
+  scene.attach(mace);
+  maceFaller.fallSpeed = 0;
+  maceHeldBy = null;
+}
+
+const triggerButtonState = { left: false, right: false };
+function checkTriggerButtons() {
+  const session = renderer.xr.getSession();
+  if (!session) return;
+  for (const source of session.inputSources) {
+    const side = source.handedness;
+    if ((side !== 'left' && side !== 'right') || !source.gamepad) continue;
+    const button = source.gamepad.buttons[0];
+    const pressed = !!button && button.pressed;
+    if (pressed && !triggerButtonState[side]) tryPickupMace(side, true);
+    if (!pressed && triggerButtonState[side] && maceHeldBy === side) dropMace();
+    triggerButtonState[side] = pressed;
+  }
+}
+
 // Keyboard "B"/"X" mirror the same lash-out for desktop preview/testing.
 // "Y" mirrors the left controller's sludge-form toggle. "A" mirrors the
-// right controller's jump/fly button.
+// right controller's jump/fly button. "Q"/"E" mirror the left/right
+// trigger for picking up the mace.
 window.addEventListener('keydown', (event) => {
   if (event.repeat) return;
   const key = event.key.toLowerCase();
@@ -259,9 +297,14 @@ window.addEventListener('keydown', (event) => {
   if (key === 'x') armLeft.triggerExtend();
   if (key === 'y') sludge.toggle();
   if (key === 'a') startJumpPress();
+  if (key === 'q') tryPickupMace('left', false);
+  if (key === 'e') tryPickupMace('right', false);
 });
 window.addEventListener('keyup', (event) => {
-  if (event.key.toLowerCase() === 'a') endJumpPress();
+  const key = event.key.toLowerCase();
+  if (key === 'a') endJumpPress();
+  if (key === 'q' && maceHeldBy === 'left') dropMace();
+  if (key === 'e' && maceHeldBy === 'right') dropMace();
 });
 
 const clock = new THREE.Clock();
@@ -276,6 +319,7 @@ renderer.setAnimationLoop(() => {
     checkExtendButtons();
     checkSludgeButton();
     checkJumpButton();
+    checkTriggerButtons();
   } else {
     orbit.update();
     updateDesktopTargets(t);
@@ -299,6 +343,10 @@ renderer.setAnimationLoop(() => {
   // Sludge fully owns the player's height while active, and flight owns it
   // while airborne; gravity resumes once neither is in control.
   if (!sludge.active && !flying) playerFaller.update(rig.position, dt);
+
+  // The mace falls like anything else once it's been dropped; while held,
+  // it's simply a child of the holding hand and needs no per-frame update.
+  if (!maceHeldBy) maceFaller.update(mace.position, dt);
 
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);

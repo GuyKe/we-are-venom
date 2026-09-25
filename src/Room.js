@@ -1,7 +1,11 @@
 import * as THREE from 'three';
+import { createVenomMaterial } from './venomTexture.js';
 
 const WALL_THICKNESS = 0.25;
 const FLOOR_DROP = 3.6; // meters the ground floor sits below the upper room
+const TUNNEL_WIDTH = 1.7;
+const TUNNEL_HEIGHT = 2.2;
+const TUNNEL_RUN = 6.5; // horizontal distance the tunnel covers as it descends
 
 // A deliberately tiny, blurry-when-stretched checkerboard - the PS1-era
 // look of a floor texture that's a handful of pixels magnified way up,
@@ -73,34 +77,6 @@ function createChalkboardTexture() {
     ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.04})`;
     ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2);
   }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function createDoorTexture() {
-  const size = 256;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size * 2;
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#6b4326';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-  ctx.lineWidth = 6;
-  for (const panelY of [0.06, 0.52]) {
-    ctx.strokeRect(size * 0.14, canvas.height * panelY, size * 0.72, canvas.height * 0.38);
-  }
-  for (let i = 0; i < 300; i++) {
-    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.08})`;
-    ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 20 + 4, 1.5);
-  }
-  ctx.fillStyle = '#d8b25a';
-  ctx.beginPath();
-  ctx.arc(size * 0.82, canvas.height * 0.5, 6, 0, Math.PI * 2);
-  ctx.fill();
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -266,33 +242,39 @@ function addBox(group, material, w, h, d, x, y, z) {
   group.add(mesh);
 }
 
-/** A solid floor slab, or one with a rectangular hatch hole cut into it. */
-function buildFloor(group, material, width, depth, y0, hole) {
-  const surfaceY = y0 - WALL_THICKNESS / 2;
-  if (!hole) {
-    addBox(group, material, width, WALL_THICKNESS, depth, 0, surfaceY, 0);
+/** A solid floor slab. */
+function buildFloor(group, material, width, depth, y0) {
+  addBox(group, material, width, WALL_THICKNESS, depth, 0, y0 - WALL_THICKNESS / 2, 0);
+}
+
+/** The left wall, either a solid plane or - when an opening is given - built
+ * from four boxes framing a rectangular doorway (the tunnel entrance). */
+function buildLeftWall(group, wallMat, width, depth, height, y0, opening) {
+  const x = -width / 2;
+  if (!opening) {
+    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(depth, height), wallMat);
+    leftWall.position.set(x, y0 + height / 2, 0);
+    leftWall.rotation.y = Math.PI / 2;
+    group.add(leftWall);
     return;
   }
 
-  const { x: hx, z: hz, w: hw, d: hd } = hole;
-  const leftW = hx - hw / 2 + width / 2;
-  const rightW = width / 2 - (hx + hw / 2);
-  const frontD = hz - hd / 2 + depth / 2;
-  const backD = depth / 2 - (hz + hd / 2);
+  const { z: oz, y: oy, w: ow, h: oh } = opening;
+  const bottomH = oy;
+  const topH = height - oy - oh;
+  const beforeD = oz - ow / 2 + depth / 2;
+  const afterD = depth / 2 - (oz + ow / 2);
 
-  addBox(group, material, leftW, WALL_THICKNESS, depth, -width / 2 + leftW / 2, surfaceY, 0);
-  addBox(group, material, rightW, WALL_THICKNESS, depth, width / 2 - rightW / 2, surfaceY, 0);
-  addBox(group, material, hw, WALL_THICKNESS, frontD, hx, surfaceY, -depth / 2 + frontD / 2);
-  addBox(group, material, hw, WALL_THICKNESS, backD, hx, surfaceY, depth / 2 - backD / 2);
+  addBox(group, wallMat, WALL_THICKNESS, bottomH, depth, x, y0 + bottomH / 2, 0);
+  addBox(group, wallMat, WALL_THICKNESS, topH, depth, x, y0 + oy + oh + topH / 2, 0);
+  addBox(group, wallMat, WALL_THICKNESS, oh, beforeD, x, y0 + oy + oh / 2, -depth / 2 + beforeD / 2);
+  addBox(group, wallMat, WALL_THICKNESS, oh, afterD, x, y0 + oy + oh / 2, depth / 2 - afterD / 2);
 }
 
 /** Left/back/far walls (always solid) plus a right wall that's either a
  * window wall, fully open, or solid. */
-function buildWalls(group, wallMat, width, depth, height, y0, rightWallMode) {
-  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(depth, height), wallMat);
-  leftWall.position.set(-width / 2, y0 + height / 2, 0);
-  leftWall.rotation.y = Math.PI / 2;
-  group.add(leftWall);
+function buildWalls(group, wallMat, width, depth, height, y0, rightWallMode, leftOpening = null) {
+  buildLeftWall(group, wallMat, width, depth, height, y0, leftOpening);
 
   const backWall = new THREE.Mesh(new THREE.PlaneGeometry(width, height), wallMat);
   backWall.position.set(0, y0 + height / 2, depth / 2);
@@ -416,8 +398,123 @@ function addCrateStacks(scene, crateTex, stackCount, centerX, centerZ, spread, g
 }
 
 /**
+ * A sloped, enclosed corridor descending from a doorway in the upper
+ * room's left wall down to ground-floor level outside the building - the
+ * physical "way downstairs", replacing a straight vertical drop. Built as
+ * one rotated group so the floor/walls/ceiling all share the same slope;
+ * `addRampRegion` (called separately, in main.js) gives it matching
+ * walkable gravity.
+ */
+function buildTunnel(scene, wallMat, entrance) {
+  const tunnelLen = Math.hypot(TUNNEL_RUN, FLOOR_DROP);
+  const angle = Math.atan2(-FLOOR_DROP, -TUNNEL_RUN);
+
+  const group = new THREE.Group();
+  group.position.copy(entrance);
+  group.rotation.z = angle;
+  scene.add(group);
+
+  addBox(group, wallMat, tunnelLen, WALL_THICKNESS, TUNNEL_WIDTH, tunnelLen / 2, -WALL_THICKNESS / 2, 0);
+  addBox(group, wallMat, tunnelLen, TUNNEL_HEIGHT, WALL_THICKNESS, tunnelLen / 2, TUNNEL_HEIGHT / 2, TUNNEL_WIDTH / 2);
+  addBox(group, wallMat, tunnelLen, TUNNEL_HEIGHT, WALL_THICKNESS, tunnelLen / 2, TUNNEL_HEIGHT / 2, -TUNNEL_WIDTH / 2);
+  addBox(group, wallMat, tunnelLen, WALL_THICKNESS, TUNNEL_WIDTH, tunnelLen / 2, TUNNEL_HEIGHT + WALL_THICKNESS / 2, 0);
+
+  const light = new THREE.PointLight(0xbcd4ff, 0.7, TUNNEL_WIDTH * 4, 2);
+  light.position.set(tunnelLen / 2, TUNNEL_HEIGHT * 0.7, 0);
+  group.add(light);
+
+  return group;
+}
+
+/** A dark iron mace - handle plus a spiked head - sized to grip with a
+ * controller trigger and swing. */
+function createMace() {
+  const group = new THREE.Group();
+
+  const handleMat = new THREE.MeshStandardMaterial({ color: '#3b2a1a', roughness: 0.8 });
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.55, 8), handleMat);
+  handle.position.y = 0.275;
+  group.add(handle);
+
+  const headMat = new THREE.MeshStandardMaterial({ color: '#5c5c66', roughness: 0.4, metalness: 0.65 });
+  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.14, 0), headMat);
+  head.position.y = 0.62;
+  group.add(head);
+
+  const spikeGeo = new THREE.ConeGeometry(0.035, 0.16, 6);
+  for (let i = 0; i < 10; i++) {
+    const dir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+    const spike = new THREE.Mesh(spikeGeo, headMat);
+    spike.position.copy(dir).multiplyScalar(0.15).add(new THREE.Vector3(0, 0.62, 0));
+    spike.lookAt(spike.position.clone().add(dir));
+    spike.rotateX(Math.PI / 2);
+    group.add(spike);
+  }
+
+  return group;
+}
+
+// A random symbiote face looming at the far end of the playground - wide
+// eyes and a jagged, gaping mouth on a rounded black mass half-sunk into
+// the ground, like something peeking up out of the earth. Every dimension
+// is randomized per load so no two are quite alike.
+function addSymbioteFace(scene, position) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.rotation.y = Math.PI + (Math.random() - 0.5) * 0.4;
+  scene.add(group);
+
+  const material = createVenomMaterial();
+  const headRadius = 1.1 + Math.random() * 0.5;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(headRadius, 24, 18), material);
+  head.scale.set(1, 0.8, 0.75);
+  head.position.y = headRadius * 0.6;
+  group.add(head);
+
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xf4f7ff });
+  const eyeGeo = new THREE.SphereGeometry(1, 12, 10);
+  eyeGeo.scale(0.3 + Math.random() * 0.12, 0.17 + Math.random() * 0.06, 0.09);
+  const eyeSep = 0.4 + Math.random() * 0.2;
+  const eyeY = head.position.y + headRadius * 0.3;
+  const eyeZ = headRadius * 0.72;
+  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+  leftEye.position.set(-eyeSep, eyeY, eyeZ);
+  leftEye.rotation.z = 0.3 + Math.random() * 0.25;
+  group.add(leftEye);
+  const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+  rightEye.position.set(eyeSep, eyeY, eyeZ);
+  rightEye.rotation.z = -(0.3 + Math.random() * 0.25);
+  group.add(rightEye);
+
+  const mouthWidth = 0.55 + Math.random() * 0.35;
+  const mouthGeo = new THREE.SphereGeometry(1, 16, 12);
+  mouthGeo.scale(mouthWidth, 0.22 + Math.random() * 0.1, 0.17);
+  const mouthMat = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.7 });
+  const mouth = new THREE.Mesh(mouthGeo, mouthMat);
+  mouth.position.set(0, head.position.y - headRadius * 0.15, headRadius * 0.75);
+  group.add(mouth);
+
+  const toothMat = new THREE.MeshStandardMaterial({ color: 0xf4f0e6, roughness: 0.3 });
+  const toothCount = 6 + Math.floor(Math.random() * 5);
+  const toothGeo = new THREE.ConeGeometry(0.05, 0.17, 6);
+  for (let i = 0; i < toothCount; i++) {
+    const tx = -mouthWidth * 0.75 + (i / (toothCount - 1)) * mouthWidth * 1.5;
+    const jitter = (Math.random() - 0.5) * 0.05;
+    const upper = new THREE.Mesh(toothGeo, toothMat);
+    upper.position.set(tx, mouth.position.y + 0.13 + jitter, mouth.position.z + 0.03);
+    upper.rotation.x = Math.PI;
+    group.add(upper);
+    const lower = new THREE.Mesh(toothGeo, toothMat);
+    lower.position.set(tx, mouth.position.y - 0.13 - jitter, mouth.position.z + 0.03);
+    group.add(lower);
+  }
+
+  return group;
+}
+
+/**
  * Builds the whole building: an upper room (mildly randomized dimensions)
- * with windows in its right wall and a floor hatch you can drop through,
+ * with windows in its right wall and a side tunnel leading downstairs,
  * and a ground floor directly below sharing the same footprint, open on
  * its right side onto an exterior playground under a psychedelic rainbow
  * sky.
@@ -432,25 +529,26 @@ export function buildRoom(scene) {
   scene.background = new THREE.Color(0xf0e6f5);
   scene.fog = new THREE.FogExp2(0xf0e6f5, 0.01);
 
-  // Floor hatch: off toward the left wall, clear of the spawn point and
-  // the Venom twin, so falling through it is deliberate, not accidental.
-  const hole = { x: -width * 0.22, z: -depth * 0.12, w: 1.6, d: 1.6 };
+  // The way downstairs: an opening in the left wall near the entrance
+  // corner (where a closed door used to be) leading into a sloped tunnel,
+  // rather than a hole you drop straight through.
+  const tunnelOpening = { z: depth / 2 - 1.1, y: 0, w: TUNNEL_WIDTH, h: TUNNEL_HEIGHT };
 
   const upperGroup = new THREE.Group();
   scene.add(upperGroup);
 
   const floorMat = new THREE.MeshStandardMaterial({ map: createCheckerFloorTexture(), roughness: 0.85 });
-  buildFloor(upperGroup, floorMat, width, depth, 0, hole);
+  buildFloor(upperGroup, floorMat, width, depth, 0);
 
   // Flat, unlit black - a PS1-era ceiling that just isn't rendered as
-  // anything but a void above the room.
+  // anything but a void above the room, seen from inside looking up.
   const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), new THREE.MeshBasicMaterial({ color: 0x050505 }));
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = height;
   upperGroup.add(ceiling);
 
   const wallMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#c9a45c'), roughness: 0.92 });
-  buildWalls(upperGroup, wallMat, width, depth, height, 0, 'windows');
+  buildWalls(upperGroup, wallMat, width, depth, height, 0, 'windows', tunnelOpening);
 
   // A chalkboard on the far wall, facing the spawn point.
   const chalkboard = new THREE.Mesh(
@@ -460,22 +558,49 @@ export function buildRoom(scene) {
   chalkboard.position.set(width * 0.15, 1.7, -depth / 2 + WALL_THICKNESS / 2 + 0.02);
   upperGroup.add(chalkboard);
 
-  // A closed door on the left wall, near the entrance corner.
-  const door = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.95, 2.05),
-    new THREE.MeshStandardMaterial({ map: createDoorTexture(), roughness: 0.75 })
-  );
-  door.position.set(-width / 2 + WALL_THICKNESS / 2 + 0.02, 1.025, depth / 2 - 1.1);
-  door.rotation.y = Math.PI / 2;
-  upperGroup.add(door);
+  // A low parapet rim around the roof, and the roof surface itself,
+  // walkable now that flying can get you up there.
+  const roofMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#7d8592'), roughness: 0.85 });
+  const roof = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), roofMat);
+  roof.rotation.x = -Math.PI / 2;
+  roof.position.y = height;
+  upperGroup.add(roof);
+  const parapetH = 0.4;
+  addBox(upperGroup, wallMat, width, parapetH, WALL_THICKNESS, 0, height + parapetH / 2, depth / 2);
+  addBox(upperGroup, wallMat, width, parapetH, WALL_THICKNESS, 0, height + parapetH / 2, -depth / 2);
+  addBox(upperGroup, wallMat, WALL_THICKNESS, parapetH, depth, -width / 2, height + parapetH / 2, 0);
+  addBox(upperGroup, wallMat, WALL_THICKNESS, parapetH, depth, width / 2, height + parapetH / 2, 0);
 
-  // School desks scattered around the room, clear of the hatch, the
-  // spawn point, and the Venom twin's starting spot.
+  // A mace left up on the roof - pick it up with the trigger.
+  const mace = createMace();
+  mace.position.set(width * 0.15, height, -depth * 0.1);
+  mace.rotation.y = Math.random() * Math.PI * 2;
+  upperGroup.add(mace);
+
+  // School desks scattered around the room, clear of the tunnel entrance,
+  // the spawn point, and the Venom twin's starting spot.
   addDesks(upperGroup, width, depth, [
-    { x: hole.x, z: hole.z, r: 1.3 },
+    { x: -width / 2 + 1.2, z: tunnelOpening.z, r: 1.3 },
     { x: 0, z: depth / 2 - 1.6, r: 1.0 },
     { x: 0, z: -0.6, r: 1.0 },
   ]);
+
+  // The sloped tunnel itself, descending from the doorway to ground level
+  // just outside the building.
+  const tunnelWallMat = new THREE.MeshStandardMaterial({ map: createGlitchWallTexture(), roughness: 0.9 });
+  const tunnelEntrance = new THREE.Vector3(-width / 2, tunnelOpening.y, tunnelOpening.z);
+  buildTunnel(scene, tunnelWallMat, tunnelEntrance);
+
+  // Matching walkable gravity for the tunnel's slope, handed to main.js's
+  // FloorMap - a ramp region interpolating from ground level at the far
+  // end back up to the doorway.
+  const tunnelRegion = {
+    minX: -width / 2 - TUNNEL_RUN,
+    maxX: -width / 2,
+    minZ: tunnelOpening.z - TUNNEL_WIDTH / 2,
+    maxZ: tunnelOpening.z + TUNNEL_WIDTH / 2,
+    ramp: { axis: 'x', y0: groundY, y1: tunnelOpening.y },
+  };
 
   // Ground floor ("the playground"), directly below - same footprint,
   // open on the right onto the exterior. No ceiling of its own: it's
@@ -487,24 +612,28 @@ export function buildRoom(scene) {
   const groundWallMat = new THREE.MeshStandardMaterial({ map: createGlitchWallTexture(), roughness: 0.9 });
   buildWalls(groundGroup, groundWallMat, width, depth, groundHeight, groundY, 'open');
 
-  // Exterior playground - a small floating platform of cracked ground
-  // rather than an endless field, just big enough to cover the building
-  // footprint and the crate piles beyond it, under a radiating rainbow sky.
+  // Exterior playground - a bounded platform of cracked ground rather than
+  // an endless field, a little wider and quite a bit longer than before so
+  // there's room to walk out to the symbiote face looming at the far end,
+  // under a radiating rainbow sky.
   const wallX = width / 2;
-  const yardSize = 26;
+  const yardWidth = 32;
+  const yardLength = 58;
   const grassTex = createGlitchGrassTexture();
-  grassTex.repeat.set(6, 6);
+  grassTex.repeat.set(7, 13);
   const yard = new THREE.Mesh(
-    new THREE.PlaneGeometry(yardSize, yardSize),
+    new THREE.PlaneGeometry(yardLength, yardWidth),
     new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95 })
   );
   yard.rotation.x = -Math.PI / 2;
-  yard.position.set(wallX + 3, groundY, 0);
+  yard.position.set(wallX + yardLength / 2, groundY, 0);
   scene.add(yard);
-  addSkydome(scene, new THREE.Vector3(wallX + 15, groundY + 5, 0), 150);
+  addSkydome(scene, new THREE.Vector3(wallX + yardLength / 2, groundY + 5, 0), 150);
 
   const crateTex = createCrateTexture();
   addCrateStacks(scene, crateTex, 3, wallX + 6, 0, 5, groundY);
+
+  addSymbioteFace(scene, new THREE.Vector3(wallX + yardLength - 4, groundY, (Math.random() - 0.5) * yardWidth * 0.3));
 
   const ambient = new THREE.HemisphereLight(0xaebfe0, 0x2a2318, 0.7);
   scene.add(ambient);
@@ -524,13 +653,20 @@ export function buildRoom(scene) {
   const playgroundGlow = new THREE.PointLight(0xffe0f5, 1.6, 30, 2);
   playgroundGlow.position.set(wallX + 15, groundY + 6, 0);
   scene.add(playgroundGlow);
+  const faceGlow = new THREE.PointLight(0xffe0f5, 1.4, 26, 2);
+  faceGlow.position.set(wallX + yardLength - 4, groundY + 3, 0);
+  scene.add(faceGlow);
+  const roofGlow = new THREE.PointLight(0xdce8ff, 0.7, 10, 2);
+  roofGlow.position.set(0, height + 1.5, 0);
+  scene.add(roofGlow);
 
   return {
     width,
     depth,
     height,
     groundY,
-    hole,
+    tunnelRegion,
+    mace,
     spawnPosition: new THREE.Vector3(0, 0, depth / 2 - 1.6),
     npcPosition: new THREE.Vector3(0, 0, -0.6),
   };

@@ -5,13 +5,16 @@ arms: they hang as floppy, whip-like black tendrils that follow your VR
 controllers with real verlet-rope physics. You wake up in a retro,
 PS1-style classroom on the second floor of a building - checkered floor,
 blotchy low-res walls, a chalkboard (blank - it doesn't say anything),
-school desks, a door - and right in front of you is another symbiote
-figure with the same floppy tendril arms as your own, jagged teeth, and a
-lolling tongue. It doesn't chase you; it just stands there and turns to
-mirror whatever direction you're currently facing. Three small windows on
-the side wall look down onto a glitched-out playground below - a green,
-hazy field under a radiating pastel rainbow sky - and a hatch in the floor
-drops you straight down to it if you walk into it.
+school desks - and right in front of you is another symbiote figure with
+the same floppy tendril arms as your own, jagged teeth, and a lolling
+tongue. It doesn't chase you; it just stands there and turns to mirror
+whatever direction you're currently facing. Three small windows on the
+side wall look down onto a glitched-out playground below - a bounded,
+cracked-ground field under a radiating pastel rainbow sky, with a random
+symbiote face looming at the far end. A sloped tunnel through the
+classroom's side wall is the way downstairs, and you can jump - or hold
+to fly, tumbling ragdoll-loose - straight up onto the roof, where a spiked
+mace is waiting to be picked up.
 
 ## Why WebXR
 
@@ -50,22 +53,33 @@ Browser, and you can iterate by just refreshing the page.
 - **A retro PS1-style classroom** — a small room (mildly randomized
   dimensions each load) styled after low-poly, low-res 32-bit-era horror
   games: a blue/green checkered floor, blotchy low-resolution walls, a flat
-  black ceiling, a blank chalkboard, a closed door, and school desks
-  scattered around (clear of the hatch and the spawn point). Three small
-  square windows are cut into the side wall, looking down onto an
-  exterior playground a full story below.
-- **A hatch to the ground floor, and real gravity** — a rectangular hole is
-  cut into the room's floor; step into it (or off any other edge) and you
-  actually fall to whatever's below instead of floating in place, landing
-  on the playground one story down. A lightweight floor-region lookup
-  (`Gravity.js`) stands in for a physics engine: it just asks "what's the
-  highest floor under this X/Z?" and falls you toward it.
-- **A dreamcore playground** — outside the windows and down the hatch: a
-  small, bounded platform of cracked, hazy green ground (not an endless
-  field) under a radiating pastel-rainbow sky (a conic-gradient skydome),
-  a few piles of wooden crates - one leaning against another rather than
-  scattered individually - and glitched walls around the ground floor - a
-  corrupted, colour-banded texture instead of a clean material.
+  black ceiling, a blank chalkboard, and school desks scattered around
+  (clear of the tunnel entrance and the spawn point). Three small square
+  windows are cut into the side wall, looking down onto an exterior
+  playground a full story below.
+- **A tunnel downstairs, a walkable roof, and real gravity** — the way
+  down is a sloped, enclosed tunnel through an opening in the classroom's
+  left wall, descending to the ground floor outside; walk down it (or off
+  any edge) and you actually fall/slide to whatever's below instead of
+  floating in place. Jump or fly straight up and you can land on the roof
+  itself, now a walkable surface with a low parapet rim. A lightweight
+  floor-region lookup (`Gravity.js`) stands in for a physics engine: given
+  an X/Z and how high up you currently are, it finds the highest floor at
+  or below that height (so the roof doesn't yank you up onto it while
+  you're still underneath it) - flat regions, or ramps that interpolate
+  height along an axis for the tunnel's slope.
+- **A mace on the roof** — squeeze either controller's trigger (or `Q`/`E`
+  on desktop) near it to pick it up; it's simply reparented onto your hand
+  and swings naturally, and letting go of the trigger drops it back into
+  the world under gravity.
+- **A dreamcore playground** — outside the windows and down the tunnel: a
+  bounded platform of cracked, hazy green ground (wider and considerably
+  longer than the building itself, but still not an endless field) under a
+  radiating pastel-rainbow sky (a conic-gradient skydome), a few piles of
+  wooden crates - one leaning against another rather than scattered
+  individually - a random symbiote face looming at the far end (every
+  dimension randomized per load), and glitched walls around the ground
+  floor - a corrupted, colour-banded texture instead of a clean material.
 - **Your symbiote twin mirrors you** — a standing Venom figure shares the
   room with you, built from the same glossy black material and the same
   floppy tendril-arm system as the player: wide white eyes, a gaping
@@ -86,6 +100,7 @@ Browser, and you can iterate by just refreshing the page.
 | Lash left arm out & back    | Left controller **X**      | `X` key              |
 | Toggle sludge form          | Left controller **Y**      | `Y` key              |
 | Jump / hold to fly & ragdoll | Right controller **A**    | `A` key              |
+| Pick up / drop the mace     | Either **trigger**         | `Q` (left) / `E` (right) |
 
 ## Project layout
 
@@ -96,8 +111,8 @@ src/VenomArm.js       Verlet tendril simulation + tapered tube mesh + claws
 src/venomTexture.js   Procedural black/white "symbiote crack" canvas texture
 src/VenomTwin.js      Standing, direction-mirroring Venom figure (body + face + a pair of VenomArms)
 src/Sludge.js         Short/medium-speed sludge form toggle
-src/Gravity.js        Floor-region lookup + fall-to-the-floor-below gravity
-src/Room.js           Second floor (with a floor hatch) + ground floor + rainbow-sky playground
+src/Gravity.js        Floor-region (flat or ramped) lookup + fall-to-the-floor-below gravity
+src/Room.js           Second floor (with a side tunnel + walkable roof) + ground floor + rainbow-sky playground
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
 ```
 
@@ -140,12 +155,14 @@ the Quest Browser — no local dev server needed at that point.
   `SLUDGE_MOVE_SPEED`.
 - `Room.js`: the random width/depth range, the window/desk layout inside
   `buildWalls(...)`/`addDesks(...)`, `FLOOR_DROP` (how far below the ground
-  floor sits), the `hole` object (hatch position/size), `yardSize` (the
-  playground platform's footprint), the crate-stack count/spread in
-  `addCrateStacks(...)`, and the skydome's center/radius in the
-  `addSkydome(...)` call.
+  floor sits), `TUNNEL_WIDTH`/`TUNNEL_HEIGHT`/`TUNNEL_RUN` (the side
+  tunnel's shape and slope), `yardWidth`/`yardLength` (the playground
+  platform's footprint), the crate-stack count/spread in
+  `addCrateStacks(...)`, the symbiote face's placement in `addSymbioteFace`,
+  and the skydome's center/radius in the `addSkydome(...)` call.
 - `main.js` jump/fly constants: `JUMP_SPEED` (tap-jump impulse),
   `FLY_SPEED` (climb rate once flying), `FLY_HOLD_THRESHOLD` (how long the
   **A** button must be held before a jump turns into flight), and
   `RAGDOLL_WOBBLE_AMPLITUDE`/`RAGDOLL_WOBBLE_FREQ` (how floppy the rig tilts
-  while airborne).
+  while airborne). `PICKUP_RADIUS` controls how close a hand needs to be to
+  grab the mace.

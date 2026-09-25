@@ -2,18 +2,25 @@ const GRAVITY_ACCEL = 9.8; // m/s^2
 const SNAP_EPSILON = 0.01;
 
 /**
- * A short list of axis-aligned floor regions (each with an optional hole),
- * used as a lightweight stand-in for a full physics engine: given an X/Z
- * position, what's the highest floor beneath it? Standing within a hole's
+ * A short list of axis-aligned floor regions (each with an optional hole
+ * or ramp), used as a lightweight stand-in for a full physics engine:
+ * given an X/Z position (and how high up you currently are), what's the
+ * highest floor at or below that height? Standing within a hole's
  * footprint excludes that region, so a hole falls through to whatever
- * region is below instead.
+ * region is below instead. A `ramp` linearly interpolates the region's
+ * height along one axis instead of being flat, for a walkable slope.
  */
 export class FloorMap {
   constructor() {
     this.regions = [];
   }
 
-  /** @param {{minX,maxX,minZ,maxZ,y,holes?:{minX,maxX,minZ,maxZ}[]}} region */
+  /**
+   * @param {{minX,maxX,minZ,maxZ,y,holes?:{minX,maxX,minZ,maxZ}[],
+   *   ramp?:{axis:'x'|'z',y0:number,y1:number}}} region `y` is ignored
+   *   when `ramp` is given - `ramp.y0` is the height at the region's min
+   *   edge along `ramp.axis`, `ramp.y1` the height at its max edge.
+   */
   addRegion(region) {
     this.regions.push(region);
   }
@@ -22,13 +29,30 @@ export class FloorMap {
     return x >= box.minX && x <= box.maxX && z >= box.minZ && z <= box.maxZ;
   }
 
-  /** Highest floor height under the given world X/Z, or 0 if none defined. */
-  getFloorHeightAt(x, z) {
+  _heightOf(region, x, z) {
+    if (!region.ramp) return region.y;
+    const { axis, y0, y1 } = region.ramp;
+    const t =
+      axis === 'x'
+        ? (x - region.minX) / (region.maxX - region.minX)
+        : (z - region.minZ) / (region.maxZ - region.minZ);
+    return y0 + (y1 - y0) * Math.max(0, Math.min(1, t));
+  }
+
+  /**
+   * Highest floor at or below `maxY` beneath the given world X/Z, or 0 if
+   * none defined. `maxY` (default: unbounded) keeps a floor that's above
+   * you - a roof you haven't climbed to yet - from being treated as the
+   * ground beneath your feet.
+   */
+  getFloorHeightAt(x, z, maxY = Infinity) {
     let best = null;
     for (const region of this.regions) {
       if (!this._inside(region, x, z)) continue;
       if (region.holes && region.holes.some((hole) => this._inside(hole, x, z))) continue;
-      if (best === null || region.y > best) best = region.y;
+      const regionY = this._heightOf(region, x, z);
+      if (regionY > maxY + SNAP_EPSILON) continue;
+      if (best === null || regionY > best) best = regionY;
     }
     return best === null ? 0 : best;
   }
@@ -55,7 +79,7 @@ export class Faller {
    * height, and gravity then arcs it back down naturally.
    */
   update(position, dt) {
-    const floorY = this.floorMap.getFloorHeightAt(position.x, position.z);
+    const floorY = this.floorMap.getFloorHeightAt(position.x, position.z, position.y);
     const airborne = position.y > floorY + SNAP_EPSILON || this.fallSpeed < 0;
     if (airborne) {
       this.fallSpeed += GRAVITY_ACCEL * dt;
