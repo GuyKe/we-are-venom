@@ -8,7 +8,8 @@ import { VenomTwin } from './VenomTwin.js';
 import { Locomotion } from './Locomotion.js';
 import { SludgeForm } from './Sludge.js';
 import { FloorMap, Faller, KnockBody } from './Gravity.js';
-import { speakVenomIntro } from './VenomVoice.js';
+import { speakVenomIntro, speakCarnageLine } from './VenomVoice.js';
+import { Hud } from './Hud.js';
 
 const intro = document.getElementById('intro');
 
@@ -25,8 +26,20 @@ renderer.xr.enabled = true;
 document.getElementById('app').appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
-const { width, depth, height, groundY, tunnelRegion, mace, crates, spawnPosition, npcPosition, carnagePosition } =
-  buildRoom(scene);
+const {
+  width,
+  depth,
+  height,
+  groundY,
+  tunnelRegion,
+  mace,
+  crates,
+  spawnPosition,
+  npcPosition,
+  carnagePosition,
+  doorPosition,
+  doorPortal,
+} = buildRoom(scene);
 
 // Floor lookup for gravity: the upper room's floor and its roof both sit
 // above the ground floor, which everything else shares - walking off any
@@ -53,6 +66,10 @@ scene.add(rig);
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.target.set(0, 1.2, -1);
 orbit.enableDamping = true;
+
+// In-VR on-screen prompt text (a DOM overlay wouldn't render inside an
+// actual headset), parented to the camera.
+const hud = new Hud(camera);
 
 // Shared glossy black symbiote material for both the player's tendril-arms
 // and the Venom figure standing in the room.
@@ -289,7 +306,7 @@ function dropMace() {
 }
 
 const triggerButtonState = { left: false, right: false };
-function checkTriggerButtons() {
+function checkTriggerButtons(t) {
   const session = renderer.xr.getSession();
   if (!session) return;
   for (const source of session.inputSources) {
@@ -297,8 +314,8 @@ function checkTriggerButtons() {
     if ((side !== 'left' && side !== 'right') || !source.gamepad) continue;
     const button = source.gamepad.buttons[0];
     const pressed = !!button && button.pressed;
-    if (pressed && !triggerButtonState[side]) tryPickupMace(side, true);
-    if (!pressed && triggerButtonState[side] && maceHeldBy === side) dropMace();
+    if (pressed && !triggerButtonState[side]) handleTriggerPress(side, true, t);
+    if (!pressed && triggerButtonState[side]) handleTriggerRelease(side);
     triggerButtonState[side] = pressed;
   }
 }
@@ -326,6 +343,7 @@ const hittableTargets = [
 ];
 
 const orbs = [];
+let orbCount = 0; // rainbow orbs currently held, spendable at the door
 const tmpMaceHeadPos = new THREE.Vector3();
 const tmpPrevMaceHeadPos = new THREE.Vector3();
 const tmpTargetPos = new THREE.Vector3();
@@ -364,6 +382,7 @@ function updateOrbs(dt, t) {
       if (dist < ORB_COLLECT_RADIUS) {
         scene.remove(orb.mesh);
         orbs.splice(i, 1);
+        orbCount++;
         continue;
       }
       orb.homeSpeed = Math.min(orb.homeSpeed + ORB_HOME_ACCEL * dt, ORB_HOME_MAX_SPEED);
@@ -408,10 +427,93 @@ function updateMaceHits(dt, t) {
   tmpPrevMaceHeadPos.copy(tmpMaceHeadPos);
 }
 
+// Getting close to the door (the symbiote wall-face's hidden portal) or to
+// Carnage each pop up an in-VR prompt for a few seconds, naming the
+// trigger action that's available right now.
+const DOOR_PROMPT_RADIUS = 3.5;
+const CARNAGE_PROMPT_RADIUS = 2.2;
+const PROMPT_DURATION = 5; // seconds
+
+let doorInRange = false;
+let doorPromptActive = false;
+let doorPromptUntil = -Infinity;
+let carnageInRange = false;
+let carnagePromptActive = false;
+let carnagePromptUntil = -Infinity;
+let portalOpen = false;
+const doorPortalTargetScale = doorPortal.scale.clone();
+
+function updateProximityPrompts(t) {
+  const doorDist = rig.position.distanceTo(doorPosition);
+  if (doorDist <= DOOR_PROMPT_RADIUS) {
+    if (!doorInRange) {
+      doorInRange = true;
+      doorPromptUntil = t + PROMPT_DURATION;
+      hud.show('CLICK TRIGGER TO FEED DOOR', PROMPT_DURATION, t);
+    }
+  } else {
+    doorInRange = false;
+  }
+  doorPromptActive = doorInRange && t < doorPromptUntil;
+
+  const carnageDist = rig.position.distanceTo(carnageTwin.group.position);
+  if (carnageDist <= CARNAGE_PROMPT_RADIUS) {
+    if (!carnageInRange) {
+      carnageInRange = true;
+      carnagePromptUntil = t + PROMPT_DURATION;
+      hud.show('CLICK TRIGGER TO TALK', PROMPT_DURATION, t);
+    }
+  } else {
+    carnageInRange = false;
+  }
+  carnagePromptActive = carnageInRange && t < carnagePromptUntil;
+}
+
+/** Spends every rainbow orb you're carrying to crack the portal open -
+ * a one-time, permanent change once it succeeds. */
+function feedDoor(t) {
+  if (portalOpen) return;
+  if (orbCount <= 0) {
+    hud.show('NO ORBS TO FEED', 2, t);
+    return;
+  }
+  orbCount = 0;
+  portalOpen = true;
+  doorPortal.visible = true;
+  doorPortal.scale.set(0.001, 0.001, 0.001);
+}
+
+// Trigger is context-sensitive: near the door or Carnage it performs that
+// prompt's action instead of the usual mace pickup/drop, so walking up to
+// either one with the mace already in hand doesn't accidentally drop it.
+const triggerConsumedByPrompt = { left: false, right: false };
+
+function handleTriggerPress(side, inXR, t) {
+  if (doorPromptActive) {
+    feedDoor(t);
+    triggerConsumedByPrompt[side] = true;
+  } else if (carnagePromptActive) {
+    talkToCarnage();
+    triggerConsumedByPrompt[side] = true;
+  } else {
+    triggerConsumedByPrompt[side] = false;
+    tryPickupMace(side, inXR);
+  }
+}
+
+function handleTriggerRelease(side) {
+  if (!triggerConsumedByPrompt[side] && maceHeldBy === side) dropMace();
+}
+
+function talkToCarnage() {
+  speakCarnageLine();
+}
+
 // Keyboard "B"/"X" mirror the same lash-out for desktop preview/testing.
 // "Y" mirrors the left controller's sludge-form toggle. "A" mirrors the
 // right controller's jump/fly button. "Q"/"E" mirror the left/right
-// trigger for picking up the mace.
+// trigger (mace pickup/drop, or feeding the door / talking to Carnage
+// when the matching prompt is up).
 window.addEventListener('keydown', (event) => {
   if (event.repeat) return;
   const key = event.key.toLowerCase();
@@ -419,14 +521,14 @@ window.addEventListener('keydown', (event) => {
   if (key === 'x') armLeft.triggerExtend();
   if (key === 'y') sludge.toggle();
   if (key === 'a') startJumpPress();
-  if (key === 'q') tryPickupMace('left', false);
-  if (key === 'e') tryPickupMace('right', false);
+  if (key === 'q') handleTriggerPress('left', false, clock.elapsedTime);
+  if (key === 'e') handleTriggerPress('right', false, clock.elapsedTime);
 });
 window.addEventListener('keyup', (event) => {
   const key = event.key.toLowerCase();
   if (key === 'a') endJumpPress();
-  if (key === 'q' && maceHeldBy === 'left') dropMace();
-  if (key === 'e' && maceHeldBy === 'right') dropMace();
+  if (key === 'q') handleTriggerRelease('left');
+  if (key === 'e') handleTriggerRelease('right');
 });
 
 const clock = new THREE.Clock();
@@ -441,7 +543,7 @@ renderer.setAnimationLoop(() => {
     checkExtendButtons();
     checkSludgeButton();
     checkJumpButton();
-    checkTriggerButtons();
+    checkTriggerButtons(t);
   } else {
     orbit.update();
     updateDesktopTargets(t);
@@ -479,6 +581,15 @@ renderer.setAnimationLoop(() => {
   }
   carnageKnock.update(carnageTwin.group, dt);
   updateOrbs(dt, t);
+
+  // The door prompt/Carnage-talk prompt, and the portal slowly blooming
+  // open and swirling once it's been fed.
+  updateProximityPrompts(t);
+  hud.update(t);
+  if (portalOpen && doorPortal.scale.x < doorPortalTargetScale.x) {
+    doorPortal.scale.lerp(doorPortalTargetScale, Math.min(1, dt * 2));
+  }
+  if (portalOpen) doorPortal.rotation.z += dt * 0.6;
 
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);

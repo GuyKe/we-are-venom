@@ -19,7 +19,11 @@ wall is the way downstairs, and you can jump - or hold to fly, tumbling
 ragdoll-loose - straight up onto the roof, where a spiked mace is waiting
 to be picked up. Swing it hard at Carnage or the crates and they'll knock
 back, tumble under real gravity, and pop out shimmering rainbow orbs that
-- like Minecraft XP - zip straight to you the moment they appear.
+- like Minecraft XP - zip straight to you the moment they appear. The
+orbs aren't just for show: get close to the wall-mounted face at the far
+end of the platform and it'll prompt you to feed it your orbs, cracking
+open a swirling portal hidden in its mouth. Not sure what it wants with
+them? Walk up to Carnage instead - he'll tell you all about it.
 
 ## Why WebXR
 
@@ -111,7 +115,20 @@ Browser, and you can iterate by just refreshing the page.
   symbiote twin, reskinned red with black muscle-crack veins instead of
   white. Unlike Venom, it doesn't mirror you - it just stands its ground
   near the crate piles until a mace swing sends it reeling, tumbling and
-  spinning under the same knockback physics as a hit crate.
+  spinning under the same knockback physics as a hit crate. Walk up close
+  and an in-VR prompt invites you to talk to him (trigger, or `Q`/`E` on
+  desktop) - he explains, out loud in his own rougher voice, what the
+  door wants with your rainbow orbs.
+- **A door that eats rainbow orbs** — get within a few meters of the
+  wall-mounted symbiote face and a prompt appears for five seconds:
+  "CLICK TRIGGER TO FEED DOOR". Do it while you're carrying orbs and
+  they're spent to crack open a swirling portal hidden in its mouth,
+  which blooms open and slowly spins in place - a permanent change to
+  the world once it happens. With none to feed it, it lets you know
+  there's nothing to give. A regular HTML overlay wouldn't render inside
+  an actual VR headset, so every in-game prompt is a small text plane
+  (`Hud.js`) parented to the camera instead, always sitting a fixed
+  distance in front of your view.
 - **Desktop preview** — no headset handy? Click the intro screen to look
   around the room with mouse-orbit; the tendrils animate on simulated hand
   targets so you can sanity-check the scene on a monitor.
@@ -126,7 +143,7 @@ Browser, and you can iterate by just refreshing the page.
 | Lash left arm out & back    | Left controller **X**      | `X` key              |
 | Toggle sludge form          | Left controller **Y**      | `Y` key              |
 | Jump / hold to fly & ragdoll | Right controller **A**    | `A` key              |
-| Pick up / drop the mace     | Either **trigger**         | `Q` (left) / `E` (right) |
+| Pick up / drop the mace, feed the door, or talk to Carnage (context-sensitive) | Either **trigger** | `Q` (left) / `E` (right) |
 
 ## Project layout
 
@@ -140,7 +157,8 @@ src/Sludge.js         Short/medium-speed sludge form toggle
 src/Gravity.js        Floor-region (flat or ramped) lookup + fall-to-the-floor-below gravity, plus knockback physics
 src/Room.js           Second floor (with a side tunnel + walkable roof) + ground floor + rainbow-sky playground
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
-src/VenomVoice.js     One-shot spoken Venom greeting via the Web Speech API
+src/VenomVoice.js     Spoken lines (Venom's greeting, Carnage's door line) via the Web Speech API
+src/Hud.js            Camera-attached text-plane prompt, for on-screen messages inside VR
 ```
 
 ## Run it locally
@@ -202,7 +220,12 @@ the Quest Browser — no local dev server needed at that point.
   `ORB_HOME_MAX_SPEED`/`ORB_COLLECT_RADIUS` control how long a rainbow
   orb hops before homing in on you, how fast it accelerates and tops out,
   and how close it needs to get before it's collected.
-- `VenomVoice.js`: the `GREETING` text itself, `pitch`/`rate` on the
-  utterance (how deep and how slow Venom sounds), and `MALE_VOICE_HINTS`
-  (the substrings used to pick a male-sounding voice out of whatever the
-  browser/OS exposes).
+- `VenomVoice.js`: the `GREETING`/`CARNAGE_DOOR_LINE` text, the `pitch`/
+  `rate` passed for each (how deep/rough each character sounds), and
+  `MALE_VOICE_HINTS` (the substrings used to pick a male-sounding voice
+  out of whatever the browser/OS exposes).
+- `main.js` door/Carnage-prompt constants: `DOOR_PROMPT_RADIUS`/
+  `CARNAGE_PROMPT_RADIUS` (how close you need to be), `PROMPT_DURATION`
+  (how long the "CLICK TRIGGER TO..." message stays up), and the portal's
+  opening speed (the `dt * 2` lerp factor next to `doorPortalTargetScale`)
+  and swirl speed (the `dt * 0.6` on its `rotation.z`).

@@ -461,12 +461,47 @@ function createMace() {
   return group;
 }
 
+// A swirling vortex texture for the portal hidden in the wall-face's
+// mouth - a rotating conic rainbow gradient with a dark vortex core.
+function createPortalTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const cx = size / 2;
+  const cy = size / 2;
+
+  const gradient = ctx.createConicGradient(0, cx, cy);
+  const hues = [280, 200, 320, 180, 260, 300, 280];
+  hues.forEach((h, i) => gradient.addColorStop(i / (hues.length - 1), `hsl(${h}, 90%, 60%)`));
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.5);
+  core.addColorStop(0, 'rgba(5,0,15,0.9)');
+  core.addColorStop(0.5, 'rgba(20,0,30,0.15)');
+  core.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 // A random symbiote face looming at the far end of the playground - a
 // flat standing wall/monolith of black symbiote mass with wide eyes and a
 // jagged, gaping mouth mounted on its front face, like the mouth-board
 // from the reference image. Every dimension is randomized per load so no
 // two are quite alike. It's turned to look back toward `lookAt` (the
-// school building) rather than an arbitrary direction.
+// school building) rather than an arbitrary direction. Hidden inside its
+// mouth is a portal, invisible until fed enough rainbow orbs - see
+// buildRoom's returned `doorPortal`.
 function addSymbioteFace(scene, position, lookAt) {
   const group = new THREE.Group();
   group.position.copy(position);
@@ -500,13 +535,28 @@ function addSymbioteFace(scene, position, lookAt) {
   group.add(rightEye);
 
   const mouthWidth = wallWidth * (0.28 + Math.random() * 0.12);
+  const mouthHeight = wallHeight * (0.07 + Math.random() * 0.03);
   const mouthGeo = new THREE.SphereGeometry(1, 16, 12);
-  mouthGeo.scale(mouthWidth, wallHeight * (0.07 + Math.random() * 0.03), 0.17);
+  mouthGeo.scale(mouthWidth, mouthHeight, 0.17);
   const mouthMat = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.7 });
   const mouth = new THREE.Mesh(mouthGeo, mouthMat);
   const mouthY = wallHeight * (0.4 + Math.random() * 0.1);
   mouth.position.set(0, mouthY, faceZ);
   group.add(mouth);
+
+  // The portal itself - hidden in the mouth until fed enough orbs.
+  const portalMat = new THREE.MeshBasicMaterial({
+    map: createPortalTexture(),
+    transparent: true,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const portal = new THREE.Mesh(new THREE.CircleGeometry(1, 32), portalMat);
+  portal.position.set(0, mouthY, faceZ + 0.07);
+  portal.scale.set(mouthWidth * 0.85, mouthHeight * 0.85, 1);
+  portal.visible = false;
+  group.add(portal);
 
   const toothMat = new THREE.MeshStandardMaterial({ color: 0xf4f0e6, roughness: 0.3 });
   const toothCount = 6 + Math.floor(Math.random() * 5);
@@ -523,7 +573,7 @@ function addSymbioteFace(scene, position, lookAt) {
     group.add(lower);
   }
 
-  return group;
+  return { group, portal };
 }
 
 // A small orb that shimmers through the rainbow, popped out when the mace
@@ -667,9 +717,10 @@ export function buildRoom(scene) {
   // Carnage stands watch near the crates, out at the platform's edge.
   const carnagePosition = new THREE.Vector3(wallX + 6, groundY, -4.5);
 
-  addSymbioteFace(
+  const doorPosition = new THREE.Vector3(wallX + yardLength - 4, groundY, (Math.random() - 0.5) * yardWidth * 0.3);
+  const { portal: doorPortal } = addSymbioteFace(
     scene,
-    new THREE.Vector3(wallX + yardLength - 4, groundY, (Math.random() - 0.5) * yardWidth * 0.3),
+    doorPosition,
     new THREE.Vector3(0, groundY, 0) // look back toward the school building
   );
 
@@ -709,5 +760,7 @@ export function buildRoom(scene) {
     spawnPosition: new THREE.Vector3(0, 0, depth / 2 - 1.6),
     npcPosition: new THREE.Vector3(0, 0, -0.6),
     carnagePosition,
+    doorPosition,
+    doorPortal,
   };
 }
