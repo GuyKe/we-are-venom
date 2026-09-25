@@ -47,12 +47,23 @@ export class Faller {
     this.fallSpeed = 0;
   }
 
-  /** Applies gravity to `position` (a THREE.Vector3-like with x/y/z), in place. */
+  /**
+   * Applies gravity to `position` (a THREE.Vector3-like with x/y/z), in
+   * place. `fallSpeed` is a signed vertical speed (positive = falling,
+   * negative = rising) - setting it negative from outside (a jump impulse)
+   * kicks the faller airborne even while still standing exactly at floor
+   * height, and gravity then arcs it back down naturally.
+   */
   update(position, dt) {
     const floorY = this.floorMap.getFloorHeightAt(position.x, position.z);
-    if (position.y > floorY + SNAP_EPSILON) {
+    const airborne = position.y > floorY + SNAP_EPSILON || this.fallSpeed < 0;
+    if (airborne) {
       this.fallSpeed += GRAVITY_ACCEL * dt;
-      position.y = Math.max(floorY, position.y - this.fallSpeed * dt);
+      position.y -= this.fallSpeed * dt;
+      if (position.y <= floorY) {
+        position.y = floorY;
+        this.fallSpeed = 0;
+      }
     } else {
       position.y = floorY;
       this.fallSpeed = 0;

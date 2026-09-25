@@ -124,6 +124,21 @@ function createGlitchGrassTexture() {
     ctx.fillStyle = `rgba(${g * 0.55}, ${g}, ${g * 0.3}, 0.6)`;
     ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random() * 3, 1 + Math.random() * 5);
   }
+  // Dried-mud crack veins between patches of grass.
+  ctx.strokeStyle = 'rgba(20,30,10,0.55)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    let x = Math.random() * size;
+    let y = Math.random() * size;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let j = 0; j < 4; j++) {
+      x += (Math.random() - 0.5) * size * 0.4;
+      y += (Math.random() - 0.5) * size * 0.4;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
@@ -362,18 +377,41 @@ function addDesks(group, width, depth, exclusions) {
   }
 }
 
-function addCrates(scene, crateTex, count, centerX, centerZ, spread, groundY) {
+// Small piles of crates - a base crate with a second one leaning/tilted
+// against or on top of it, occasionally with a third alongside - rather
+// than a field of individually scattered boxes.
+function addCrateStacks(scene, crateTex, stackCount, centerX, centerZ, spread, groundY) {
   const material = new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.85 });
-  for (let i = 0; i < count; i++) {
-    const size = 0.55 + Math.random() * 0.65;
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), material);
-    crate.position.set(
-      centerX + (Math.random() - 0.5) * spread,
-      groundY + size / 2,
-      centerZ + (Math.random() - 0.5) * spread
+
+  for (let i = 0; i < stackCount; i++) {
+    const cx = centerX + (Math.random() - 0.5) * spread;
+    const cz = centerZ + (Math.random() - 0.5) * spread;
+
+    const baseSize = 0.6 + Math.random() * 0.5;
+    const base = new THREE.Mesh(new THREE.BoxGeometry(baseSize, baseSize, baseSize), material);
+    base.position.set(cx, groundY + baseSize / 2, cz);
+    base.rotation.y = Math.random() * Math.PI * 2;
+    scene.add(base);
+
+    const topSize = 0.5 + Math.random() * 0.4;
+    const top = new THREE.Mesh(new THREE.BoxGeometry(topSize, topSize, topSize), material);
+    const lean = (Math.random() - 0.5) * 0.9;
+    top.position.set(
+      cx + Math.sin(lean) * topSize * 0.4,
+      groundY + baseSize + Math.cos(lean) * topSize * 0.45,
+      cz + (Math.random() - 0.5) * 0.2
     );
-    crate.rotation.y = Math.random() * Math.PI * 2;
-    scene.add(crate);
+    top.rotation.z = lean;
+    top.rotation.y = Math.random() * Math.PI * 2;
+    scene.add(top);
+
+    if (Math.random() < 0.5) {
+      const extraSize = 0.4 + Math.random() * 0.3;
+      const extra = new THREE.Mesh(new THREE.BoxGeometry(extraSize, extraSize, extraSize), material);
+      extra.position.set(cx + (Math.random() - 0.5) * 0.7, groundY + extraSize / 2, cz + (Math.random() - 0.5) * 0.7);
+      extra.rotation.y = Math.random() * Math.PI * 2;
+      scene.add(extra);
+    }
   }
 }
 
@@ -449,23 +487,24 @@ export function buildRoom(scene) {
   const groundWallMat = new THREE.MeshStandardMaterial({ map: createGlitchWallTexture(), roughness: 0.9 });
   buildWalls(groundGroup, groundWallMat, width, depth, groundHeight, groundY, 'open');
 
-  // Exterior playground - large enough to run underneath the whole
-  // building footprint as well as out into the open field beyond it,
-  // under a radiating rainbow sky.
+  // Exterior playground - a small floating platform of cracked ground
+  // rather than an endless field, just big enough to cover the building
+  // footprint and the crate piles beyond it, under a radiating rainbow sky.
   const wallX = width / 2;
+  const yardSize = 26;
   const grassTex = createGlitchGrassTexture();
-  grassTex.repeat.set(48, 48);
+  grassTex.repeat.set(6, 6);
   const yard = new THREE.Mesh(
-    new THREE.PlaneGeometry(220, 220),
+    new THREE.PlaneGeometry(yardSize, yardSize),
     new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95 })
   );
   yard.rotation.x = -Math.PI / 2;
-  yard.position.set(wallX, groundY, 0);
+  yard.position.set(wallX + 3, groundY, 0);
   scene.add(yard);
   addSkydome(scene, new THREE.Vector3(wallX + 15, groundY + 5, 0), 150);
 
   const crateTex = createCrateTexture();
-  addCrates(scene, crateTex, 14, wallX + 10, 1, 16, groundY);
+  addCrateStacks(scene, crateTex, 3, wallX + 6, 0, 5, groundY);
 
   const ambient = new THREE.HemisphereLight(0xaebfe0, 0x2a2318, 0.7);
   scene.add(ambient);

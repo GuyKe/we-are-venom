@@ -202,14 +202,66 @@ function checkSludgeButton() {
   }
 }
 
+// The right controller's A button (index 4) jumps on a tap; keep holding
+// it past FLY_HOLD_THRESHOLD and it turns into sustained flight instead,
+// with a floppy "ragdolled" wobble on the whole rig while airborne.
+const JUMP_SPEED = 4.5; // m/s upward impulse
+const FLY_SPEED = 3.0; // m/s steady ascent while flying
+const FLY_HOLD_THRESHOLD = 0.25; // seconds held before a jump becomes a flight
+const RAGDOLL_WOBBLE_AMPLITUDE = 0.09; // radians
+const RAGDOLL_WOBBLE_FREQ = 9; // radians/sec
+
+let jumpHeld = false;
+let jumpHeldTime = 0;
+let flying = false;
+
+function isGrounded() {
+  return Math.abs(rig.position.y - floorMap.getFloorHeightAt(rig.position.x, rig.position.z)) < 0.02;
+}
+
+function startJumpPress() {
+  if (jumpHeld || sludge.active) return;
+  jumpHeld = true;
+  jumpHeldTime = 0;
+  if (isGrounded()) playerFaller.fallSpeed = -JUMP_SPEED;
+}
+
+function endJumpPress() {
+  jumpHeld = false;
+  jumpHeldTime = 0;
+  flying = false;
+  rig.rotation.x = 0;
+  rig.rotation.z = 0;
+}
+
+let jumpButtonWasPressed = false;
+function checkJumpButton() {
+  const session = renderer.xr.getSession();
+  if (!session) return;
+  for (const source of session.inputSources) {
+    if (source.handedness !== 'right' || !source.gamepad) continue;
+    const button = source.gamepad.buttons[4];
+    const pressed = !!button && button.pressed;
+    if (pressed && !jumpButtonWasPressed) startJumpPress();
+    if (!pressed && jumpButtonWasPressed) endJumpPress();
+    jumpButtonWasPressed = pressed;
+    return;
+  }
+}
+
 // Keyboard "B"/"X" mirror the same lash-out for desktop preview/testing.
-// "Y" mirrors the left controller's sludge-form toggle.
+// "Y" mirrors the left controller's sludge-form toggle. "A" mirrors the
+// right controller's jump/fly button.
 window.addEventListener('keydown', (event) => {
   if (event.repeat) return;
   const key = event.key.toLowerCase();
   if (key === 'b') armRight.triggerExtend();
   if (key === 'x') armLeft.triggerExtend();
   if (key === 'y') sludge.toggle();
+  if (key === 'a') startJumpPress();
+});
+window.addEventListener('keyup', (event) => {
+  if (event.key.toLowerCase() === 'a') endJumpPress();
 });
 
 const clock = new THREE.Clock();
@@ -223,14 +275,30 @@ renderer.setAnimationLoop(() => {
     locomotion.update(dt);
     checkExtendButtons();
     checkSludgeButton();
+    checkJumpButton();
   } else {
     orbit.update();
     updateDesktopTargets(t);
   }
 
-  // Sludge fully owns the player's height while active; gravity resumes
-  // once they revert to normal size.
-  if (!sludge.active) playerFaller.update(rig.position, dt);
+  // Holding the jump button past the threshold turns the jump into
+  // sustained flight - climbing steadily and tumbling with a bounded
+  // pitch/roll wobble (a "ragdolled" feel without spinning the camera,
+  // which would be nauseating in VR) instead of arcing back down.
+  if (jumpHeld && !sludge.active) {
+    jumpHeldTime += dt;
+    if (jumpHeldTime > FLY_HOLD_THRESHOLD) {
+      flying = true;
+      playerFaller.fallSpeed = 0;
+      rig.position.y += FLY_SPEED * dt;
+      rig.rotation.x = Math.sin(t * RAGDOLL_WOBBLE_FREQ) * RAGDOLL_WOBBLE_AMPLITUDE;
+      rig.rotation.z = Math.cos(t * RAGDOLL_WOBBLE_FREQ * 0.8) * RAGDOLL_WOBBLE_AMPLITUDE;
+    }
+  }
+
+  // Sludge fully owns the player's height while active, and flight owns it
+  // while airborne; gravity resumes once neither is in control.
+  if (!sludge.active && !flying) playerFaller.update(rig.position, dt);
 
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);

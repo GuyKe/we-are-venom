@@ -40,6 +40,13 @@ Browser, and you can iterate by just refreshing the page.
   turns you into a very short, ground-hugging puddle of symbiote that moves
   at a medium pace instead of a full-size humanoid: your whole rig sinks
   down, both arms hide, and your move speed changes.
+- **Jump, or hold to fly and ragdoll** — tap the right controller's **A**
+  button (or `A` on desktop) for a quick jump, using the same floor-region
+  gravity that governs falling; keep it held past a quarter-second and it
+  turns into sustained upward flight instead of arcing back down, with the
+  whole rig gently tumbling on a bounded pitch/roll wobble while airborne
+  (a "ragdolled" feel without ever spinning the camera itself, which would
+  be nauseating in VR). Let go and gravity takes back over.
 - **A retro PS1-style classroom** — a small room (mildly randomized
   dimensions each load) styled after low-poly, low-res 32-bit-era horror
   games: a blue/green checkered floor, blotchy low-resolution walls, a flat
@@ -54,9 +61,11 @@ Browser, and you can iterate by just refreshing the page.
   (`Gravity.js`) stands in for a physics engine: it just asks "what's the
   highest floor under this X/Z?" and falls you toward it.
 - **A dreamcore playground** — outside the windows and down the hatch: a
-  hazy green field under a radiating pastel-rainbow sky (a conic-gradient
-  skydome), scattered wooden crates, and glitched walls around the ground
-  floor - a corrupted, colour-banded texture instead of a clean material.
+  small, bounded platform of cracked, hazy green ground (not an endless
+  field) under a radiating pastel-rainbow sky (a conic-gradient skydome),
+  a few piles of wooden crates - one leaning against another rather than
+  scattered individually - and glitched walls around the ground floor - a
+  corrupted, colour-banded texture instead of a clean material.
 - **Your symbiote twin mirrors you** — a standing Venom figure shares the
   room with you, built from the same glossy black material and the same
   floppy tendril-arm system as the player: wide white eyes, a gaping
@@ -76,6 +85,7 @@ Browser, and you can iterate by just refreshing the page.
 | Lash right arm out & back   | Right controller **B**     | `B` key              |
 | Lash left arm out & back    | Left controller **X**      | `X` key              |
 | Toggle sludge form          | Left controller **Y**      | `Y` key              |
+| Jump / hold to fly & ragdoll | Right controller **A**    | `A` key              |
 
 ## Project layout
 
@@ -130,6 +140,12 @@ the Quest Browser — no local dev server needed at that point.
   `SLUDGE_MOVE_SPEED`.
 - `Room.js`: the random width/depth range, the window/desk layout inside
   `buildWalls(...)`/`addDesks(...)`, `FLOOR_DROP` (how far below the ground
-  floor sits), the `hole` object (hatch position/size), the crate
-  count/spread in `addCrates(...)`, and the skydome's center/radius in the
+  floor sits), the `hole` object (hatch position/size), `yardSize` (the
+  playground platform's footprint), the crate-stack count/spread in
+  `addCrateStacks(...)`, and the skydome's center/radius in the
   `addSkydome(...)` call.
+- `main.js` jump/fly constants: `JUMP_SPEED` (tap-jump impulse),
+  `FLY_SPEED` (climb rate once flying), `FLY_HOLD_THRESHOLD` (how long the
+  **A** button must be held before a jump turns into flight), and
+  `RAGDOLL_WOBBLE_AMPLITUDE`/`RAGDOLL_WOBBLE_FREQ` (how floppy the rig tilts
+  while airborne).
