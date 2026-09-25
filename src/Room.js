@@ -361,9 +361,11 @@ function addDesks(group, width, depth, exclusions) {
 
 // Small piles of crates - a base crate with a second one leaning/tilted
 // against or on top of it, occasionally with a third alongside - rather
-// than a field of individually scattered boxes.
+// than a field of individually scattered boxes. Returns every individual
+// crate mesh so the caller can give each one its own physics.
 function addCrateStacks(scene, crateTex, stackCount, centerX, centerZ, spread, groundY) {
   const material = new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.85 });
+  const crates = [];
 
   for (let i = 0; i < stackCount; i++) {
     const cx = centerX + (Math.random() - 0.5) * spread;
@@ -374,6 +376,7 @@ function addCrateStacks(scene, crateTex, stackCount, centerX, centerZ, spread, g
     base.position.set(cx, groundY + baseSize / 2, cz);
     base.rotation.y = Math.random() * Math.PI * 2;
     scene.add(base);
+    crates.push(base);
 
     const topSize = 0.5 + Math.random() * 0.4;
     const top = new THREE.Mesh(new THREE.BoxGeometry(topSize, topSize, topSize), material);
@@ -386,6 +389,7 @@ function addCrateStacks(scene, crateTex, stackCount, centerX, centerZ, spread, g
     top.rotation.z = lean;
     top.rotation.y = Math.random() * Math.PI * 2;
     scene.add(top);
+    crates.push(top);
 
     if (Math.random() < 0.5) {
       const extraSize = 0.4 + Math.random() * 0.3;
@@ -393,8 +397,11 @@ function addCrateStacks(scene, crateTex, stackCount, centerX, centerZ, spread, g
       extra.position.set(cx + (Math.random() - 0.5) * 0.7, groundY + extraSize / 2, cz + (Math.random() - 0.5) * 0.7);
       extra.rotation.y = Math.random() * Math.PI * 2;
       scene.add(extra);
+      crates.push(extra);
     }
   }
+
+  return crates;
 }
 
 /**
@@ -454,10 +461,11 @@ function createMace() {
   return group;
 }
 
-// A random symbiote face looming at the far end of the playground - wide
-// eyes and a jagged, gaping mouth on a rounded black mass half-sunk into
-// the ground, like something peeking up out of the earth. Every dimension
-// is randomized per load so no two are quite alike.
+// A random symbiote face looming at the far end of the playground - a
+// flat standing wall/monolith of black symbiote mass with wide eyes and a
+// jagged, gaping mouth mounted on its front face, like the mouth-board
+// from the reference image. Every dimension is randomized per load so no
+// two are quite alike.
 function addSymbioteFace(scene, position) {
   const group = new THREE.Group();
   group.position.copy(position);
@@ -465,51 +473,71 @@ function addSymbioteFace(scene, position) {
   scene.add(group);
 
   const material = createVenomMaterial();
-  const headRadius = 1.1 + Math.random() * 0.5;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(headRadius, 24, 18), material);
-  head.scale.set(1, 0.8, 0.75);
-  head.position.y = headRadius * 0.6;
-  group.add(head);
+  const wallWidth = 2.6 + Math.random() * 1.0;
+  const wallHeight = 3.0 + Math.random() * 1.0;
+  const wallThickness = 0.5 + Math.random() * 0.25;
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(wallWidth, wallHeight, wallThickness), material);
+  wall.position.y = wallHeight / 2;
+  group.add(wall);
+
+  const faceZ = wallThickness / 2 + 0.015;
 
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0xf4f7ff });
   const eyeGeo = new THREE.SphereGeometry(1, 12, 10);
-  eyeGeo.scale(0.3 + Math.random() * 0.12, 0.17 + Math.random() * 0.06, 0.09);
-  const eyeSep = 0.4 + Math.random() * 0.2;
-  const eyeY = head.position.y + headRadius * 0.3;
-  const eyeZ = headRadius * 0.72;
+  eyeGeo.scale(wallWidth * (0.1 + Math.random() * 0.04), wallHeight * (0.045 + Math.random() * 0.015), 0.09);
+  const eyeSep = wallWidth * (0.16 + Math.random() * 0.06);
+  const eyeY = wallHeight * (0.68 + Math.random() * 0.08);
   const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-  leftEye.position.set(-eyeSep, eyeY, eyeZ);
+  leftEye.position.set(-eyeSep, eyeY, faceZ);
   leftEye.rotation.z = 0.3 + Math.random() * 0.25;
   group.add(leftEye);
   const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-  rightEye.position.set(eyeSep, eyeY, eyeZ);
+  rightEye.position.set(eyeSep, eyeY, faceZ);
   rightEye.rotation.z = -(0.3 + Math.random() * 0.25);
   group.add(rightEye);
 
-  const mouthWidth = 0.55 + Math.random() * 0.35;
+  const mouthWidth = wallWidth * (0.28 + Math.random() * 0.12);
   const mouthGeo = new THREE.SphereGeometry(1, 16, 12);
-  mouthGeo.scale(mouthWidth, 0.22 + Math.random() * 0.1, 0.17);
+  mouthGeo.scale(mouthWidth, wallHeight * (0.07 + Math.random() * 0.03), 0.17);
   const mouthMat = new THREE.MeshStandardMaterial({ color: 0x050203, roughness: 0.7 });
   const mouth = new THREE.Mesh(mouthGeo, mouthMat);
-  mouth.position.set(0, head.position.y - headRadius * 0.15, headRadius * 0.75);
+  const mouthY = wallHeight * (0.4 + Math.random() * 0.1);
+  mouth.position.set(0, mouthY, faceZ);
   group.add(mouth);
 
   const toothMat = new THREE.MeshStandardMaterial({ color: 0xf4f0e6, roughness: 0.3 });
   const toothCount = 6 + Math.floor(Math.random() * 5);
-  const toothGeo = new THREE.ConeGeometry(0.05, 0.17, 6);
+  const toothGeo = new THREE.ConeGeometry(0.055, 0.19, 6);
   for (let i = 0; i < toothCount; i++) {
     const tx = -mouthWidth * 0.75 + (i / (toothCount - 1)) * mouthWidth * 1.5;
     const jitter = (Math.random() - 0.5) * 0.05;
     const upper = new THREE.Mesh(toothGeo, toothMat);
-    upper.position.set(tx, mouth.position.y + 0.13 + jitter, mouth.position.z + 0.03);
+    upper.position.set(tx, mouthY + 0.14 + jitter, faceZ + 0.03);
     upper.rotation.x = Math.PI;
     group.add(upper);
     const lower = new THREE.Mesh(toothGeo, toothMat);
-    lower.position.set(tx, mouth.position.y - 0.13 - jitter, mouth.position.z + 0.03);
+    lower.position.set(tx, mouthY - 0.14 - jitter, faceZ + 0.03);
     group.add(lower);
   }
 
   return group;
+}
+
+// A small orb that shimmers through the rainbow, popped out when the mace
+// connects with something. No gameplay meaning assigned yet - just the
+// visual/physical object.
+export function createRainbowOrb() {
+  const geometry = new THREE.SphereGeometry(0.09, 14, 10);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 1.1,
+    roughness: 0.25,
+    metalness: 0.1,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.userData.huePhase = Math.random();
+  return mesh;
 }
 
 /**
@@ -631,7 +659,10 @@ export function buildRoom(scene) {
   addSkydome(scene, new THREE.Vector3(wallX + yardLength / 2, groundY + 5, 0), 150);
 
   const crateTex = createCrateTexture();
-  addCrateStacks(scene, crateTex, 3, wallX + 6, 0, 5, groundY);
+  const crates = addCrateStacks(scene, crateTex, 3, wallX + 6, 0, 5, groundY);
+
+  // Carnage stands watch near the crates, out at the platform's edge.
+  const carnagePosition = new THREE.Vector3(wallX + 6, groundY, -4.5);
 
   addSymbioteFace(scene, new THREE.Vector3(wallX + yardLength - 4, groundY, (Math.random() - 0.5) * yardWidth * 0.3));
 
@@ -667,7 +698,9 @@ export function buildRoom(scene) {
     groundY,
     tunnelRegion,
     mace,
+    crates,
     spawnPosition: new THREE.Vector3(0, 0, depth / 2 - 1.6),
     npcPosition: new THREE.Vector3(0, 0, -0.6),
+    carnagePosition,
   };
 }

@@ -10,11 +10,13 @@ the same floppy tendril arms as your own, jagged teeth, and a lolling
 tongue. It doesn't chase you; it just stands there and turns to mirror
 whatever direction you're currently facing. Three small windows on the
 side wall look down onto a glitched-out playground below - a bounded,
-cracked-ground field under a radiating pastel rainbow sky, with a random
-symbiote face looming at the far end. A sloped tunnel through the
-classroom's side wall is the way downstairs, and you can jump - or hold
-to fly, tumbling ragdoll-loose - straight up onto the roof, where a spiked
-mace is waiting to be picked up.
+cracked-ground field under a radiating pastel rainbow sky, with a
+wall-mounted symbiote face looming at the far end and Carnage lurking
+near a few piles of crates. A sloped tunnel through the classroom's side
+wall is the way downstairs, and you can jump - or hold to fly, tumbling
+ragdoll-loose - straight up onto the roof, where a spiked mace is waiting
+to be picked up. Swing it hard at Carnage or the crates and they'll knock
+back, tumble under real gravity, and pop out shimmering rainbow orbs.
 
 ## Why WebXR
 
@@ -68,24 +70,34 @@ Browser, and you can iterate by just refreshing the page.
   or below that height (so the roof doesn't yank you up onto it while
   you're still underneath it) - flat regions, or ramps that interpolate
   height along an axis for the tunnel's slope.
-- **A mace on the roof** — squeeze either controller's trigger (or `Q`/`E`
-  on desktop) near it to pick it up; it's simply reparented onto your hand
-  and swings naturally, and letting go of the trigger drops it back into
-  the world under gravity.
+- **A mace on the roof, and a real hit reaction** — squeeze either
+  controller's trigger (or `Q`/`E` on desktop) near it to pick it up; it's
+  simply reparented onto your hand and swings naturally, and letting go of
+  the trigger drops it back into the world under gravity. Swing it fast
+  enough near Carnage or a crate and it registers as a hit: the target
+  gets shoved and spun by a decaying knockback velocity, and a small
+  rainbow-hued orb pops out at the point of impact (no gameplay purpose
+  assigned to the orbs yet - just the reward for landing a hit).
 - **A dreamcore playground** — outside the windows and down the tunnel: a
   bounded platform of cracked, hazy green ground (wider and considerably
   longer than the building itself, but still not an endless field) under a
   radiating pastel-rainbow sky (a conic-gradient skydome), a few piles of
   wooden crates - one leaning against another rather than scattered
-  individually - a random symbiote face looming at the far end (every
-  dimension randomized per load), and glitched walls around the ground
-  floor - a corrupted, colour-banded texture instead of a clean material.
+  individually, each with its own gravity and knockback physics - a
+  wall-mounted symbiote face looming at the far end (every dimension
+  randomized per load), and glitched walls around the ground floor - a
+  corrupted, colour-banded texture instead of a clean material.
 - **Your symbiote twin mirrors you** — a standing Venom figure shares the
   room with you, built from the same glossy black material and the same
   floppy tendril-arm system as the player: wide white eyes, a gaping
   jagged-toothed mouth, and a long lolling tongue. It doesn't walk toward
   you - it stands its ground and continuously turns to face whatever
   direction you're currently facing, like an eerie mirror.
+- **Carnage lurks near the crates** — the same kind of figure as your
+  symbiote twin, reskinned red with black muscle-crack veins instead of
+  white. Unlike Venom, it doesn't mirror you - it just stands its ground
+  near the crate piles until a mace swing sends it reeling, tumbling and
+  spinning under the same knockback physics as a hit crate.
 - **Desktop preview** — no headset handy? Click the intro screen to look
   around the room with mouse-orbit; the tendrils animate on simulated hand
   targets so you can sanity-check the scene on a monitor.
@@ -111,7 +123,7 @@ src/VenomArm.js       Verlet tendril simulation + tapered tube mesh + claws
 src/venomTexture.js   Procedural black/white "symbiote crack" canvas texture
 src/VenomTwin.js      Standing, direction-mirroring Venom figure (body + face + a pair of VenomArms)
 src/Sludge.js         Short/medium-speed sludge form toggle
-src/Gravity.js        Floor-region (flat or ramped) lookup + fall-to-the-floor-below gravity
+src/Gravity.js        Floor-region (flat or ramped) lookup + fall-to-the-floor-below gravity, plus knockback physics
 src/Room.js           Second floor (with a side tunnel + walkable roof) + ground floor + rainbow-sky playground
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
 ```
@@ -158,11 +170,16 @@ the Quest Browser — no local dev server needed at that point.
   floor sits), `TUNNEL_WIDTH`/`TUNNEL_HEIGHT`/`TUNNEL_RUN` (the side
   tunnel's shape and slope), `yardWidth`/`yardLength` (the playground
   platform's footprint), the crate-stack count/spread in
-  `addCrateStacks(...)`, the symbiote face's placement in `addSymbioteFace`,
+  `addCrateStacks(...)`, the symbiote wall-face's size/placement in
+  `addSymbioteFace`, Carnage's spot next to the crates (`carnagePosition`),
   and the skydome's center/radius in the `addSkydome(...)` call.
 - `main.js` jump/fly constants: `JUMP_SPEED` (tap-jump impulse),
   `FLY_SPEED` (climb rate once flying), `FLY_HOLD_THRESHOLD` (how long the
   **A** button must be held before a jump turns into flight), and
   `RAGDOLL_WOBBLE_AMPLITUDE`/`RAGDOLL_WOBBLE_FREQ` (how floppy the rig tilts
   while airborne). `PICKUP_RADIUS` controls how close a hand needs to be to
-  grab the mace.
+  grab the mace; `HIT_SPEED_THRESHOLD`/`HIT_RADIUS`/`HIT_COOLDOWN`/
+  `KNOCK_FORCE` control how hard and how often a mace swing needs to
+  connect to register a hit, and `Gravity.js`'s `KnockBody` class (its
+  internal `KNOCK_DRAG`) controls how quickly a knocked-back crate or
+  Carnage skids to a stop.

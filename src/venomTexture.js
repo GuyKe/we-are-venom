@@ -121,3 +121,29 @@ export function createVenomMaterial() {
   });
 }
 
+/** Same glossy symbiote material, recoloured red for Carnage - a deep red
+ * clearcoat body with black muscle-crack veins instead of white ones. */
+export function createCarnageMaterial() {
+  const map = createVenomTexture({
+    baseColorStops: ['#8c1414', '#5c0a0a', '#1a0303'],
+    crackRGB: '10,10,10',
+    speckleRGB: '0,0,0',
+  });
+  map.repeat.set(1, 3);
+
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x2a0505,
+    map,
+    roughness: 0.2,
+    metalness: 0.1,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.08,
+    emissive: new THREE.Color(0xff2a2a),
+    emissiveMap: map,
+    emissiveIntensity: 0.12,
+    sheen: 1.0,
+    sheenColor: new THREE.Color(0x551111),
+    sheenRoughness: 0.5,
+  });
+}
+

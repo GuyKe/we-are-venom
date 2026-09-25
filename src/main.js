@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { buildRoom } from './Room.js';
-import { createVenomMaterial } from './venomTexture.js';
+import { buildRoom, createRainbowOrb } from './Room.js';
+import { createVenomMaterial, createCarnageMaterial } from './venomTexture.js';
 import { VenomArm } from './VenomArm.js';
 import { VenomTwin } from './VenomTwin.js';
 import { Locomotion } from './Locomotion.js';
 import { SludgeForm } from './Sludge.js';
-import { FloorMap, Faller } from './Gravity.js';
+import { FloorMap, Faller, KnockBody } from './Gravity.js';
 
 const intro = document.getElementById('intro');
 
@@ -24,7 +24,8 @@ renderer.xr.enabled = true;
 document.getElementById('app').appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
-const { width, depth, height, groundY, tunnelRegion, mace, spawnPosition, npcPosition } = buildRoom(scene);
+const { width, depth, height, groundY, tunnelRegion, mace, crates, spawnPosition, npcPosition, carnagePosition } =
+  buildRoom(scene);
 
 // Floor lookup for gravity: the upper room's floor and its roof both sit
 // above the ground floor, which everything else shares - walking off any
@@ -60,6 +61,19 @@ const armRight = new VenomArm({ material: venomMaterial, side: 'right' });
 scene.add(armLeft.mesh, armLeft.tipAnchor, armLeft.spikesGroup, armRight.mesh, armRight.tipAnchor, armRight.spikesGroup);
 
 const venomTwin = new VenomTwin(scene, venomMaterial, npcPosition);
+
+// Carnage stands its ground near the crates - unlike Venom, it doesn't
+// mirror the player at all, so a mace hit's knockback spin isn't fought
+// every frame by a "turn back to face you" update.
+const carnageMaterial = createCarnageMaterial();
+const carnageTwin = new VenomTwin(scene, carnageMaterial, carnagePosition);
+const carnageFaller = new Faller(floorMap);
+const carnageKnock = new KnockBody();
+
+// Every crate gets its own gravity and knockback, so a solid mace swing
+// can send one tumbling off the platform instead of it being purely
+// decorative set-dressing.
+const crateBodies = crates.map((mesh) => ({ mesh, faller: new Faller(floorMap), knock: new KnockBody() }));
 
 // Raw controller + grip spaces give us tracked pose data; we don't attach
 // any visible controller model since the symbiote tendrils replace the hands.
@@ -286,6 +300,73 @@ function checkTriggerButtons() {
   }
 }
 
+// Swinging the held mace fast enough near Carnage or a crate knocks it
+// back and pops out a rainbow orb - no gameplay meaning assigned to the
+// orbs yet, just the hit-reaction.
+const HIT_SPEED_THRESHOLD = 1.6; // m/s the mace head must be moving to count as a swing
+const HIT_RADIUS = 0.6;
+const HIT_COOLDOWN = 0.4; // seconds before the same target can be hit again
+const KNOCK_FORCE = 3.5;
+const MAX_ORBS = 40;
+
+const hittableTargets = [
+  ...crateBodies.map((body) => ({ object: body.mesh, knock: body.knock, faller: body.faller, lastHitTime: -Infinity })),
+  { object: carnageTwin.group, knock: carnageKnock, faller: null, lastHitTime: -Infinity },
+];
+
+const orbs = [];
+const tmpMaceHeadPos = new THREE.Vector3();
+const tmpPrevMaceHeadPos = new THREE.Vector3();
+const tmpTargetPos = new THREE.Vector3();
+const tmpHitDir = new THREE.Vector3();
+let maceHeadTracked = false;
+
+function spawnRainbowOrb(position) {
+  const orbMesh = createRainbowOrb();
+  orbMesh.position.copy(position);
+  scene.add(orbMesh);
+  orbs.push({ mesh: orbMesh, faller: new Faller(floorMap), knock: new KnockBody() });
+  orbs[orbs.length - 1].knock.applyImpulse(Math.random() - 0.5, Math.random() - 0.5, 1.5);
+  orbs[orbs.length - 1].faller.fallSpeed = -2.5;
+
+  if (orbs.length > MAX_ORBS) {
+    const stale = orbs.shift();
+    scene.remove(stale.mesh);
+  }
+}
+
+function updateMaceHits(dt, t) {
+  if (!maceHeldBy) {
+    maceHeadTracked = false;
+    return;
+  }
+  mace.localToWorld(tmpMaceHeadPos.set(0, 0.62, 0));
+  if (!maceHeadTracked) {
+    tmpPrevMaceHeadPos.copy(tmpMaceHeadPos);
+    maceHeadTracked = true;
+    return;
+  }
+
+  const speed = tmpMaceHeadPos.distanceTo(tmpPrevMaceHeadPos) / dt;
+  if (speed > HIT_SPEED_THRESHOLD) {
+    for (const target of hittableTargets) {
+      target.object.getWorldPosition(tmpTargetPos);
+      if (tmpMaceHeadPos.distanceTo(tmpTargetPos) > HIT_RADIUS) continue;
+      if (t - target.lastHitTime < HIT_COOLDOWN) continue;
+
+      target.lastHitTime = t;
+      tmpHitDir.subVectors(tmpTargetPos, tmpMaceHeadPos);
+      tmpHitDir.y = 0;
+      if (tmpHitDir.lengthSq() < 1e-6) tmpHitDir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+      target.knock.applyImpulse(tmpHitDir.x, tmpHitDir.z, KNOCK_FORCE);
+      if (target.faller) target.faller.fallSpeed = -1.8;
+      spawnRainbowOrb(tmpTargetPos);
+    }
+  }
+
+  tmpPrevMaceHeadPos.copy(tmpMaceHeadPos);
+}
+
 // Keyboard "B"/"X" mirror the same lash-out for desktop preview/testing.
 // "Y" mirrors the left controller's sludge-form toggle. "A" mirrors the
 // right controller's jump/fly button. "Q"/"E" mirror the left/right
@@ -348,6 +429,22 @@ renderer.setAnimationLoop(() => {
   // it's simply a child of the holding hand and needs no per-frame update.
   if (!maceHeldBy) maceFaller.update(mace.position, dt);
 
+  // Detect mace-vs-crate/Carnage hits, then let every knocked body's
+  // velocity/spin and gravity play out for this frame.
+  updateMaceHits(dt, t);
+  for (const body of crateBodies) {
+    body.knock.update(body.mesh, dt);
+    body.faller.update(body.mesh.position, dt);
+  }
+  carnageKnock.update(carnageTwin.group, dt);
+  for (const orb of orbs) {
+    orb.knock.update(orb.mesh, dt);
+    orb.faller.update(orb.mesh.position, dt);
+    const hue = (t * 0.4 + orb.mesh.userData.huePhase) % 1;
+    orb.mesh.material.color.setHSL(hue, 0.9, 0.6);
+    orb.mesh.material.emissive.copy(orb.mesh.material.color);
+  }
+
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);
 
@@ -356,6 +453,10 @@ renderer.setAnimationLoop(() => {
   camera.getWorldQuaternion(tmpHeadQuat);
   tmpEuler.setFromQuaternion(tmpHeadQuat, 'YXZ');
   venomTwin.update(dt, tmpEuler.y, venomFaller);
+
+  // Carnage doesn't mirror the player - it just stands its ground near the
+  // crates, reacting only to being knocked around.
+  carnageTwin.update(dt, null, carnageFaller);
 
   renderer.render(scene, camera);
 });

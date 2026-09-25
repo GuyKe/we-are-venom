@@ -94,3 +94,42 @@ export class Faller {
     }
   }
 }
+
+const KNOCK_DRAG = 3.5; // 1/s - how fast horizontal knockback velocity bleeds off
+
+/**
+ * Horizontal-plane knockback: a decaying velocity (plus a decaying spin)
+ * that something like a hit crate or a struck NPC gets shoved with, on top
+ * of whatever vertical Faller it already has. Lives separately from Faller
+ * since not everything that gets knocked around needs its own gravity (a
+ * VenomTwin already manages its own vertical fall internally).
+ */
+export class KnockBody {
+  constructor() {
+    this.vx = 0;
+    this.vz = 0;
+    this.angVel = 0;
+  }
+
+  /** Shoves it in the (dirX, dirZ) direction (need not be normalized) with
+   * the given force, plus a bit of random spin. */
+  applyImpulse(dirX, dirZ, force) {
+    const len = Math.hypot(dirX, dirZ) || 1;
+    this.vx += (dirX / len) * force;
+    this.vz += (dirZ / len) * force;
+    this.angVel += (Math.random() - 0.5) * force;
+  }
+
+  /** Integrates the current velocity/spin into `object`'s position and
+   * yaw rotation, in place, and lets both decay. */
+  update(object, dt) {
+    object.position.x += this.vx * dt;
+    object.position.z += this.vz * dt;
+    object.rotation.y += this.angVel * dt;
+
+    const drag = Math.max(0, 1 - KNOCK_DRAG * dt);
+    this.vx *= drag;
+    this.vz *= drag;
+    this.angVel *= drag;
+  }
+}
