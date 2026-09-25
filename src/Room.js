@@ -465,11 +465,14 @@ function createMace() {
 // flat standing wall/monolith of black symbiote mass with wide eyes and a
 // jagged, gaping mouth mounted on its front face, like the mouth-board
 // from the reference image. Every dimension is randomized per load so no
-// two are quite alike.
-function addSymbioteFace(scene, position) {
+// two are quite alike. It's turned to look back toward `lookAt` (the
+// school building) rather than an arbitrary direction.
+function addSymbioteFace(scene, position, lookAt) {
   const group = new THREE.Group();
   group.position.copy(position);
-  group.rotation.y = Math.PI + (Math.random() - 0.5) * 0.4;
+  const dx = lookAt.x - position.x;
+  const dz = lookAt.z - position.z;
+  group.rotation.y = Math.atan2(dx, dz) + (Math.random() - 0.5) * 0.3;
   scene.add(group);
 
   const material = createVenomMaterial();
@@ -664,7 +667,11 @@ export function buildRoom(scene) {
   // Carnage stands watch near the crates, out at the platform's edge.
   const carnagePosition = new THREE.Vector3(wallX + 6, groundY, -4.5);
 
-  addSymbioteFace(scene, new THREE.Vector3(wallX + yardLength - 4, groundY, (Math.random() - 0.5) * yardWidth * 0.3));
+  addSymbioteFace(
+    scene,
+    new THREE.Vector3(wallX + yardLength - 4, groundY, (Math.random() - 0.5) * yardWidth * 0.3),
+    new THREE.Vector3(0, groundY, 0) // look back toward the school building
+  );
 
   const ambient = new THREE.HemisphereLight(0xaebfe0, 0x2a2318, 0.7);
   scene.add(ambient);

@@ -16,7 +16,8 @@ near a few piles of crates. A sloped tunnel through the classroom's side
 wall is the way downstairs, and you can jump - or hold to fly, tumbling
 ragdoll-loose - straight up onto the roof, where a spiked mace is waiting
 to be picked up. Swing it hard at Carnage or the crates and they'll knock
-back, tumble under real gravity, and pop out shimmering rainbow orbs.
+back, tumble under real gravity, and pop out shimmering rainbow orbs that
+- like Minecraft XP - zip straight to you the moment they appear.
 
 ## Why WebXR
 
@@ -77,16 +78,20 @@ Browser, and you can iterate by just refreshing the page.
   enough near Carnage or a crate and it registers as a hit: the target
   gets shoved and spun by a decaying knockback velocity, and a small
   rainbow-hued orb pops out at the point of impact (no gameplay purpose
-  assigned to the orbs yet - just the reward for landing a hit).
+  assigned to the orbs yet - just the reward for landing a hit). Like
+  Minecraft XP, each orb hops once from its own knockback and then flies
+  straight at you, accelerating the whole way, and disappears the instant
+  it reaches you.
 - **A dreamcore playground** — outside the windows and down the tunnel: a
   bounded platform of cracked, hazy green ground (wider and considerably
   longer than the building itself, but still not an endless field) under a
   radiating pastel-rainbow sky (a conic-gradient skydome), a few piles of
   wooden crates - one leaning against another rather than scattered
   individually, each with its own gravity and knockback physics - a
-  wall-mounted symbiote face looming at the far end (every dimension
-  randomized per load), and glitched walls around the ground floor - a
-  corrupted, colour-banded texture instead of a clean material.
+  wall-mounted symbiote face looming at the far end, turned to look back
+  toward the school building (every dimension randomized per load), and
+  glitched walls around the ground floor - a corrupted, colour-banded
+  texture instead of a clean material.
 - **Your symbiote twin mirrors you** — a standing Venom figure shares the
   room with you, built from the same glossy black material and the same
   floppy tendril-arm system as the player: wide white eyes, a gaping
@@ -170,9 +175,10 @@ the Quest Browser — no local dev server needed at that point.
   floor sits), `TUNNEL_WIDTH`/`TUNNEL_HEIGHT`/`TUNNEL_RUN` (the side
   tunnel's shape and slope), `yardWidth`/`yardLength` (the playground
   platform's footprint), the crate-stack count/spread in
-  `addCrateStacks(...)`, the symbiote wall-face's size/placement in
-  `addSymbioteFace`, Carnage's spot next to the crates (`carnagePosition`),
-  and the skydome's center/radius in the `addSkydome(...)` call.
+  `addCrateStacks(...)`, the symbiote wall-face's size/placement and the
+  `lookAt` point it turns toward in `addSymbioteFace`, Carnage's spot next
+  to the crates (`carnagePosition`), and the skydome's center/radius in
+  the `addSkydome(...)` call.
 - `main.js` jump/fly constants: `JUMP_SPEED` (tap-jump impulse),
   `FLY_SPEED` (climb rate once flying), `FLY_HOLD_THRESHOLD` (how long the
   **A** button must be held before a jump turns into flight), and
@@ -182,4 +188,7 @@ the Quest Browser — no local dev server needed at that point.
   `KNOCK_FORCE` control how hard and how often a mace swing needs to
   connect to register a hit, and `Gravity.js`'s `KnockBody` class (its
   internal `KNOCK_DRAG`) controls how quickly a knocked-back crate or
-  Carnage skids to a stop.
+  Carnage skids to a stop. `ORB_POP_DURATION`/`ORB_HOME_ACCEL`/
+  `ORB_HOME_MAX_SPEED`/`ORB_COLLECT_RADIUS` control how long a rainbow
+  orb hops before homing in on you, how fast it accelerates and tops out,
+  and how close it needs to get before it's collected.

@@ -309,6 +309,14 @@ const HIT_COOLDOWN = 0.4; // seconds before the same target can be hit again
 const KNOCK_FORCE = 3.5;
 const MAX_ORBS = 40;
 
+// Once popped out, a rainbow orb briefly hops from its own knockback, then
+// - like Minecraft XP - flies straight at the player, speeding up the
+// longer it chases, and is collected (removed) the moment it reaches you.
+const ORB_POP_DURATION = 0.18; // seconds of hopping before it starts homing
+const ORB_HOME_ACCEL = 9; // m/s^2
+const ORB_HOME_MAX_SPEED = 9; // m/s
+const ORB_COLLECT_RADIUS = 0.4;
+
 const hittableTargets = [
   ...crateBodies.map((body) => ({ object: body.mesh, knock: body.knock, faller: body.faller, lastHitTime: -Infinity })),
   { object: carnageTwin.group, knock: carnageKnock, faller: null, lastHitTime: -Infinity },
@@ -319,19 +327,49 @@ const tmpMaceHeadPos = new THREE.Vector3();
 const tmpPrevMaceHeadPos = new THREE.Vector3();
 const tmpTargetPos = new THREE.Vector3();
 const tmpHitDir = new THREE.Vector3();
+const tmpOrbPlayerPos = new THREE.Vector3();
+const tmpOrbDir = new THREE.Vector3();
 let maceHeadTracked = false;
 
-function spawnRainbowOrb(position) {
+function spawnRainbowOrb(position, t) {
   const orbMesh = createRainbowOrb();
   orbMesh.position.copy(position);
   scene.add(orbMesh);
-  orbs.push({ mesh: orbMesh, faller: new Faller(floorMap), knock: new KnockBody() });
-  orbs[orbs.length - 1].knock.applyImpulse(Math.random() - 0.5, Math.random() - 0.5, 1.5);
-  orbs[orbs.length - 1].faller.fallSpeed = -2.5;
+  const orb = { mesh: orbMesh, faller: new Faller(floorMap), knock: new KnockBody(), spawnTime: t, homeSpeed: 0 };
+  orb.knock.applyImpulse(Math.random() - 0.5, Math.random() - 0.5, 1.5);
+  orb.faller.fallSpeed = -2.5;
+  orbs.push(orb);
 
   if (orbs.length > MAX_ORBS) {
     const stale = orbs.shift();
     scene.remove(stale.mesh);
+  }
+}
+
+/** Advances every orb for one frame: a brief pop under its own knockback
+ * and gravity, then homing in on the player until it's collected. */
+function updateOrbs(dt, t) {
+  for (let i = orbs.length - 1; i >= 0; i--) {
+    const orb = orbs[i];
+    if (t - orb.spawnTime < ORB_POP_DURATION) {
+      orb.knock.update(orb.mesh, dt);
+      orb.faller.update(orb.mesh.position, dt);
+    } else {
+      camera.getWorldPosition(tmpOrbPlayerPos);
+      tmpOrbDir.subVectors(tmpOrbPlayerPos, orb.mesh.position);
+      const dist = tmpOrbDir.length();
+      if (dist < ORB_COLLECT_RADIUS) {
+        scene.remove(orb.mesh);
+        orbs.splice(i, 1);
+        continue;
+      }
+      orb.homeSpeed = Math.min(orb.homeSpeed + ORB_HOME_ACCEL * dt, ORB_HOME_MAX_SPEED);
+      orb.mesh.position.addScaledVector(tmpOrbDir.divideScalar(dist), orb.homeSpeed * dt);
+    }
+
+    const hue = (t * 0.4 + orb.mesh.userData.huePhase) % 1;
+    orb.mesh.material.color.setHSL(hue, 0.9, 0.6);
+    orb.mesh.material.emissive.copy(orb.mesh.material.color);
   }
 }
 
@@ -360,7 +398,7 @@ function updateMaceHits(dt, t) {
       if (tmpHitDir.lengthSq() < 1e-6) tmpHitDir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
       target.knock.applyImpulse(tmpHitDir.x, tmpHitDir.z, KNOCK_FORCE);
       if (target.faller) target.faller.fallSpeed = -1.8;
-      spawnRainbowOrb(tmpTargetPos);
+      spawnRainbowOrb(tmpTargetPos, t);
     }
   }
 
@@ -437,13 +475,7 @@ renderer.setAnimationLoop(() => {
     body.faller.update(body.mesh.position, dt);
   }
   carnageKnock.update(carnageTwin.group, dt);
-  for (const orb of orbs) {
-    orb.knock.update(orb.mesh, dt);
-    orb.faller.update(orb.mesh.position, dt);
-    const hue = (t * 0.4 + orb.mesh.userData.huePhase) % 1;
-    orb.mesh.material.color.setHSL(hue, 0.9, 0.6);
-    orb.mesh.material.emissive.copy(orb.mesh.material.color);
-  }
+  updateOrbs(dt, t);
 
   updateArm(armLeft, 'left', shoulderOffsetLeft, dt, inXR);
   updateArm(armRight, 'right', shoulderOffsetRight, dt, inXR);
