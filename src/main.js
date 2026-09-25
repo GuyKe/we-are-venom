@@ -8,6 +8,7 @@ import { VenomTwin } from './VenomTwin.js';
 import { Locomotion } from './Locomotion.js';
 import { SludgeForm } from './Sludge.js';
 import { FloorMap, Faller, KnockBody } from './Gravity.js';
+import { speakVenomIntro } from './VenomVoice.js';
 
 const intro = document.getElementById('intro');
 
@@ -113,12 +114,14 @@ const sludge = new SludgeForm(rig, locomotion, venomMaterial, [
 
 renderer.xr.addEventListener('sessionstart', () => {
   intro.classList.add('hidden');
+  speakVenomIntro();
 });
 renderer.xr.addEventListener('sessionend', () => {
   intro.classList.remove('hidden');
 });
 intro.addEventListener('click', () => {
   if (!renderer.xr.isPresenting) intro.classList.add('hidden');
+  speakVenomIntro();
 });
 
 function findGripBySide(side) {

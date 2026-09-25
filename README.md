@@ -1,8 +1,10 @@
 # we-are-venom
 
-A Meta Quest WebXR scene built with Three.js. A symbiote has bonded to your
-arms: they hang as floppy, whip-like black tendrils that follow your VR
-controllers with real verlet-rope physics. You wake up in a retro,
+A Meta Quest WebXR scene built with Three.js. The moment you start the
+experience, Venom greets you out loud: "Hello, welcome to my game, I do
+not ask questions but break has started. Go." A symbiote has bonded to
+your arms: they hang as floppy, whip-like black tendrils that follow your
+VR controllers with real verlet-rope physics. You wake up in a retro,
 PS1-style classroom on the second floor of a building - checkered floor,
 blotchy low-res walls, a chalkboard (blank - it doesn't say anything),
 school desks - and right in front of you is another symbiote figure with
@@ -26,6 +28,13 @@ Browser, and you can iterate by just refreshing the page.
 
 ## Features
 
+- **Venom greets you out loud** — the first time you actually start the
+  experience (clicking the intro screen, or entering VR), a deep,
+  deliberately-paced voice line plays via the browser's built-in
+  text-to-speech (`speechSynthesis` - no external audio asset or API
+  needed): "Hello, welcome to my game, I do not ask questions but break
+  has started. Go." It picks the most male-sounding voice the browser/OS
+  happens to offer and only ever speaks once per visit.
 - **Floppy symbiote arms** — each arm is a 9-point verlet chain rendered as a
   tapered tube mesh, pinned at the shoulder and at your hand (controller
   grip). Low constraint-iteration count keeps them soft and whip-like instead
@@ -131,6 +140,7 @@ src/Sludge.js         Short/medium-speed sludge form toggle
 src/Gravity.js        Floor-region (flat or ramped) lookup + fall-to-the-floor-below gravity, plus knockback physics
 src/Room.js           Second floor (with a side tunnel + walkable roof) + ground floor + rainbow-sky playground
 src/Locomotion.js     Thumbstick smooth-move + snap-turn
+src/VenomVoice.js     One-shot spoken Venom greeting via the Web Speech API
 ```
 
 ## Run it locally
@@ -192,3 +202,7 @@ the Quest Browser — no local dev server needed at that point.
   `ORB_HOME_MAX_SPEED`/`ORB_COLLECT_RADIUS` control how long a rainbow
   orb hops before homing in on you, how fast it accelerates and tops out,
   and how close it needs to get before it's collected.
+- `VenomVoice.js`: the `GREETING` text itself, `pitch`/`rate` on the
+  utterance (how deep and how slow Venom sounds), and `MALE_VOICE_HINTS`
+  (the substrings used to pick a male-sounding voice out of whatever the
+  browser/OS exposes).
